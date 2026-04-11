@@ -155,6 +155,7 @@ func RegisterComplete(c *fiber.Ctx) error {
 		PracticingExpiry:     &practicingExpiry,
 		PharmacistPhone:      c.FormValue("pharmacist_phone"),
 		PharmacistEmail:      pharmacistEmail,
+		MpesaMethod:          c.FormValue("mpesa_method", "TILL"),
 		IdDocument:           c.FormValue("id_document"),
 		PracticingLicenseDoc: c.FormValue("practicing_license_doc"),
 		OperatingLicenseDoc:  c.FormValue("operating_license_doc"),

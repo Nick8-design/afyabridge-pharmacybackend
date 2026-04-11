@@ -23,7 +23,7 @@ func SetupRoutes(app *fiber.App) {
         auth.Post("/login", handlers.Login)
         auth.Post("/register/complete", handlers.RegisterComplete)
         auth.Post("/forgot-password", handlers.ForgotPassword)
-        // auth.Post("/reset-password", handlers.ResetPassword)
+        auth.Post("/reset-password", handlers.ResetPassword)
         auth.Post("/otp/send", handlers.SendOTP)
         auth.Post("/otp/verify", handlers.VerifyOTP)
     
@@ -34,8 +34,26 @@ func SetupRoutes(app *fiber.App) {
         api.Get("/profile", handlers.GetProfile)
         api.Put("/profile", handlers.UpdateProfile)
         api.Patch("/profile/photo", handlers.UpdatePhoto)
-        // api.Delete("/profile/photo", handlers.DeletePhoto) // Set profile_image to NULL
+        api.Delete("/profile/photo", handlers.DeletePhoto) // Set profile_image to NULL
         api.Put("/change-password", handlers.ChangePassword)
+
+
+        orders := api.Group("/orders")
+
+        orders.Get("/", handlers.GetOrders)
+        orders.Get("/today", handlers.GetOrdersToday)
+        orders.Get("/ready", handlers.GetOrdersReady)
+        orders.Get("/riders/available", handlers.GetAvailableRiders)
+        orders.Get("/:order_id", handlers.GetOrderDetails)
+        orders.Patch("/:order_id/status", handlers.UpdateOrderStatus)
+        orders.Post("/:order_id/cancel", handlers.CancelOrder)
+        orders.Post("/:order_id/dispense", handlers.DispenseOrder)
+        orders.Post("/:order_id/assign-rider", handlers.AssignRider)
+        orders.Get("/patient/:patient_id/history", handlers.GetPatientOrderHistory)
+
+
+
+
     
 }
 

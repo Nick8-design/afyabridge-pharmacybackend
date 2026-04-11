@@ -3,15 +3,16 @@ package middleware
 import (
 	"afyabridge-pharmacybackend/database"
 	"afyabridge-pharmacybackend/model"
-	
+	"fmt"
+
 	"os"
-	
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
 )
 
-// Protected verifies the JWT and sets the user context
+
+
 func Protected() fiber.Handler {
     return func(c *fiber.Ctx) error {
         authHeader := c.Get("Authorization")
@@ -20,6 +21,7 @@ func Protected() fiber.Handler {
         }
 
         tokenString := authHeader[7:]
+
         token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
             return []byte(os.Getenv("JWT_SECRET")), nil
         })
@@ -29,14 +31,63 @@ func Protected() fiber.Handler {
         }
 
         claims := token.Claims.(jwt.MapClaims)
-        
-        // FIX: Match the key used in handlers/auth.go
-        c.Locals("user_id", claims["user_id"]) 
+
+        // FIX 1: always convert to string safely
+        userID := fmt.Sprintf("%v", claims["user_id"])
+
+        // Save user_id
+        c.Locals("user_id", userID)
         c.Locals("role", claims["role"])
-        
+
+        // FIX 2: Fetch user and attach pharmacy_id
+        var user model.User
+        if err := database.DB.First(&user, "id = ?", userID).Error; err != nil {
+            return c.Status(401).JSON(model.Response{Success: false, Message: "User not found"})
+        }
+
+        if user.PharmacyID == nil {
+            return c.Status(400).JSON(model.Response{
+                Success: false,
+                Message: "Your account is not linked to a pharmacy",
+            })
+        }
+
+        // Attach pharmacy_id globally
+        c.Locals("pharmacy_id", *user.PharmacyID)
+
         return c.Next()
     }
 }
+// func Protected() fiber.Handler {
+//     return func(c *fiber.Ctx) error {
+//         authHeader := c.Get("Authorization")
+//         if authHeader == "" || len(authHeader) < 8 {
+//             return c.Status(401).JSON(model.Response{Success: false, Message: "Unauthorized"})
+//         }
+
+//         tokenString := authHeader[7:]
+//         token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+//             return []byte(os.Getenv("JWT_SECRET")), nil
+//         })
+
+//         if err != nil || !token.Valid {
+//             return c.Status(401).JSON(model.Response{Success: false, Message: "Invalid token"})
+//         }
+
+//         claims := token.Claims.(jwt.MapClaims)
+        
+//         // FIX: Match the key used in handlers/auth.go
+//         c.Locals("user_id", claims["user_id"]) 
+//         c.Locals("role", claims["role"])
+        
+		
+		
+		
+
+
+//         return c.Next()
+//     }
+// }
 // PharmacyServiceGuard ensures the user is a verified pharmacist and account is active
 func PharmacyServiceGuard() fiber.Handler {
 	return func(c *fiber.Ctx) error {

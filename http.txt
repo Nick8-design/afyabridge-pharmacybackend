@@ -130,7 +130,7 @@ POST /api/auth/login/
 Body (JSON)
 {
 "email": "pedinick@afyabridge.com",
-  "password": "Nairobi@888"
+  "password": "Nairobi@123"
 }
 
 Save:
@@ -391,3 +391,180 @@ PUT /api/change-password
     "data": null,
     "errors": null
 }
+
+
+
+4. GET ALL ORDERS
+GET /api/orders/
+
+
+EXPECTED RESPONSE
+
+{
+    "success": true,
+    "message": "",
+    "data": {
+        "count": 2,
+        "results": [
+            {
+                "id": "26b61b06-b767-4902-8792-7cd57c050374",
+                "order_number": "ORD-1775939380656-e948",
+                "prescription_id": "e948cef5-79c2-4ad3-a525-834746952c00",
+                "pharmacy_id": "3b4214d5-d689-462d-b917-b53e994d17ce",
+                "prepared_by": "",
+                "patient_id": "82d84ba4-2c2d-4c1f-b7ed-de69ea59013a",
+                "patient_name": "Peter Doe",
+                "patient_phone": "+254711112222",
+                "patient_address": "7QQ4+7CV, Kakamega",
+                "delivery_type": "home_delivery",
+                "priority": "normal",
+                "status": "pending",
+                "total_amount": "0",
+                "payment_status": "unpaid",
+                "payment_method": "mpesa",
+                "mpesa_ref": "",
+                "created_at": "2026-04-11T20:29:40+03:00",
+                "updated_at": "2026-04-11T20:29:40+03:00"
+            },
+            {
+                "id": "f0e09cc5-5bbb-450f-b7c8-cafced7bbb8d",
+                "order_number": "ORD-1775939379249-e948",
+                "prescription_id": "e948cef5-79c2-4ad3-a525-834746952c00",
+                "pharmacy_id": "3b4214d5-d689-462d-b917-b53e994d17ce",
+                "prepared_by": "",
+                "patient_id": "82d84ba4-2c2d-4c1f-b7ed-de69ea59013a",
+                "patient_name": "Peter Doe",
+                "patient_phone": "+254711112222",
+                "patient_address": "7QQ4+7CV, Kakamega",
+                "delivery_type": "home_delivery",
+                "priority": "normal",
+                "status": "pending",
+                "total_amount": "0",
+                "payment_status": "unpaid",
+                "payment_method": "mpesa",
+                "mpesa_ref": "",
+                "created_at": "2026-04-11T20:29:39+03:00",
+                "updated_at": "2026-04-11T20:29:39+03:00"
+            }
+        ]
+    },
+    "errors": null
+}
+
+GET /api/orders/?status=pending
+GET /api/orders/?priority=normal
+http://127.0.0.1:3001/api/orders/?q=Peter
+
+resp
+{
+    "success": true,
+    "message": "",
+    "data": {
+        "count": 2,
+        "results": [
+            {
+                "id": "26b61b06-b767-4902-8792-7cd57c050374",
+                "order_number": "ORD-1775939380656-e948",
+                "prescription_id": "e948cef5-79c2-4ad3-a525-834746952c00",
+                "pharmacy_id": "3b4214d5-d689-462d-b917-b53e994d17ce",
+                "prepared_by": "",
+                "patient_id": "82d84ba4-2c2d-4c1f-b7ed-de69ea59013a",
+                "patient_name": "Peter Doe",
+                "patient_phone": "+254711112222",
+                "patient_address": "7QQ4+7CV, Kakamega",
+                "delivery_type": "home_delivery",
+                "priority": "normal",
+                "status": "pending",
+                "total_amount": "0",
+                "payment_status": "unpaid",
+                "payment_method": "mpesa",
+                "mpesa_ref": "",
+                "created_at": "2026-04-11T20:29:40+03:00",
+                "updated_at": "2026-04-11T20:29:40+03:00"
+            },
+            {
+                "id": "f0e09cc5-5bbb-450f-b7c8-cafced7bbb8d",
+                "order_number": "ORD-1775939379249-e948",
+                "prescription_id": "e948cef5-79c2-4ad3-a525-834746952c00",
+                "pharmacy_id": "3b4214d5-d689-462d-b917-b53e994d17ce",
+                "prepared_by": "",
+                "patient_id": "82d84ba4-2c2d-4c1f-b7ed-de69ea59013a",
+                "patient_name": "Peter Doe",
+                "patient_phone": "+254711112222",
+                "patient_address": "7QQ4+7CV, Kakamega",
+                "delivery_type": "home_delivery",
+                "priority": "normal",
+                "status": "pending",
+                "total_amount": "0",
+                "payment_status": "unpaid",
+                "payment_method": "mpesa",
+                "mpesa_ref": "",
+                "created_at": "2026-04-11T20:29:39+03:00",
+                "updated_at": "2026-04-11T20:29:39+03:00"
+            }
+        ]
+    },
+    "errors": null
+}
+
+5. GET TODAY ORDERS
+GET /api/orders/today
+
+6. GET READY ORDERS
+GET /api/orders/ready
+
+
+7. GET SINGLE ORDER
+GET /api/orders/1111-2222-3333
+
+http://127.0.0.1:3001/api/orders/f0e09cc5-5bbb-450f-b7c8-cafced7bbb8d
+
+res 
+{
+    "success": true,
+    "message": "",
+    "data": {
+        "id": "f0e09cc5-5bbb-450f-b7c8-cafced7bbb8d",
+        "order_number": "ORD-1775939379249-e948",
+        "prescription_id": "e948cef5-79c2-4ad3-a525-834746952c00",
+        "pharmacy_id": "3b4214d5-d689-462d-b917-b53e994d17ce",
+        "prepared_by": "",
+        "patient_id": "82d84ba4-2c2d-4c1f-b7ed-de69ea59013a",
+        "patient_name": "Peter Doe",
+        "patient_phone": "+254711112222",
+        "patient_address": "7QQ4+7CV, Kakamega",
+        "delivery_type": "home_delivery",
+        "priority": "normal",
+        "status": "pending",
+        "total_amount": "0",
+        "payment_status": "unpaid",
+        "payment_method": "mpesa",
+        "mpesa_ref": "",
+        "created_at": "2026-04-11T20:29:39+03:00",
+        "updated_at": "2026-04-11T20:29:39+03:00"
+    },
+    "errors": null
+}
+
+
+. UPDATE STATUS
+PATCH /api/orders/1111-2222-3333/status
+
+http://127.0.0.1:3001/api/orders/f0e09cc5-5bbb-450f-b7c8-cafced7bbb8d/status
+
+body
+{
+  "status": "processing"
+}
+res
+
+{
+    "success": true,
+    "message": "Order status updated",
+    "data": {
+        "id": "f0e09cc5-5bbb-450f-b7c8-cafced7bbb8d",
+        "status": "processing"
+    },
+    "errors": null
+}
+
