@@ -14,6 +14,7 @@ import (
 )
 
 func Login(c *fiber.Ctx) error {
+	fmt.Println("JWT_SECRET:", os.Getenv("JWT_SECRET"))
 	type LoginInput struct {
 		Email    string `json:"email" validate:"required,email"`
 		Password string `json:"password" validate:"required"`
@@ -262,19 +263,20 @@ func VerifyOTP(c *fiber.Ctx) error {
 
 // GetProfile - Return authenticated user's profile with nested pharmacy
 func GetProfile(c *fiber.Ctx) error {
-	// Note: Ensure your middleware uses "user_id" consistently with other handlers
-	userID := c.Locals("user_id").(string)
+    userID, ok := c.Locals("user_id").(string) // Ensure this matches exactly
+    if !ok {
+         return c.Status(401).JSON(model.Response{Success: false, Message: "Invalid session"})
+    }
+    
+    var user model.User
+    if err := database.DB.First(&user, "id = ?", userID).Error; err != nil {
+        return c.Status(404).JSON(model.Response{Success: false, Message: "User not found"})
+    }
 
-	var user model.User
-	// Preload Pharmacy to provide the frontend with the pharmacy name/details
-	if err := database.DB.Preload("Pharmacy").First(&user, "id = ?", userID).Error; err != nil {
-		return c.Status(404).JSON(model.Response{Success: false, Message: "User not found"})
-	}
-
-	return c.Status(200).JSON(model.Response{
-		Success: true,
-		Data:    user,
-	})
+    return c.Status(200).JSON(model.Response{
+        Success: true,
+        Data:    user,
+    })
 }
 
 // UpdateProfile - Partial update of user details

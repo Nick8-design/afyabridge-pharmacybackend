@@ -1,3 +1,8 @@
+
+
+
+
+
 reg http://127.0.0.1:3001/auth/register/complete
 
 body 
@@ -201,5 +206,188 @@ Save:
             "gps_lng": ""
         }
     },
+    "errors": null
+}
+
+
+
+
+
+5. GET PROFILE
+GET /api/profile
+
+Expected:
+
+
+{
+    "success": true,
+    "message": "",
+    "data": {
+        "id": "9464e863-037b-4d3b-8448-f0e8cc525e86",
+        "role": "pharmacist",
+        "full_name": "Nixy Pedi",
+        "email": "pedinick@afyabridge.com",
+        "password_hash": "$2a$14$NX0SO4K4oHSENRr4jRVB5eHz2.hP7KbKKX7GGRferwClVX3R2tD02",
+        "phone_number": "0722000001",
+        "profile_image": null,
+        "initials": null,
+        "is_active": true,
+        "is_verified": false,
+        "two_factor_enabled": false,
+        "two_factor_method": "sms",
+        "two_factor_phone": null,
+        "last_password_change": null,
+        "last_login": null,
+        "account_status": "active",
+        "status_reason": null,
+        "bio": null,
+        "gender": null,
+        "date_of_birth": null,
+        "age": null,
+        "blood_type": null,
+        "address": null,
+        "provider_sharing": true,
+        "research_opt_in": false,
+        "emergency_contacts": null,
+        "allergies": null,
+        "surgeries": null,
+        "visits": null,
+        "conditions": null,
+        "documents": null,
+        "specialty": null,
+        "kmpdc_license": null,
+        "hospital": null,
+        "consultation_fee": null,
+        "allow_video_consultations": false,
+        "allow_in_person_consultations": false,
+        "working_hours": null,
+        "slot_duration": null,
+        "auto_confirm_appointments": false,
+        "rating": 0,
+        "total_reviews": 0,
+        "verification_status": null,
+        "verified_at": null,
+        "verified_by": null,
+        "national_id": "12345678",
+        "vehicle_type": null,
+        "plate_number": null,
+        "driving_license_no": null,
+        "license_expiry": null,
+        "id_verified": false,
+        "license_verified": false,
+        "approved_status": null,
+        "date_approved": null,
+        "on_duty": false,
+        "emergency_contact": null,
+        "orders_made": 0,
+        "verified_by_admin": false,
+        "pharmacy_id": "3b4214d5-d689-462d-b917-b53e994d17ce",
+        "created_at": "2026-04-11T20:41:43+03:00",
+        "updated_at": "2026-04-11T20:41:43+03:00",
+        "gps_lat": "",
+        "gps_lng": ""
+    },
+    "errors": null
+}
+
+
+
+6. UPDATE PROFILE
+PUT /api/profile
+{
+  "full_name": "Nick Eagle Updated",
+  "phone_number": "+254700000000",
+  "bio": "Senior Pharmacist",
+  "gender": "male"
+}
+
+resp
+{
+    "success": true,
+    "message": "Profile updated",
+    "data": {
+        "id": "9464e863-037b-4d3b-8448-f0e8cc525e86",
+        "role": "pharmacist",
+        "full_name": "Nick Eagle",
+        "email": "pedinick@afyabridge.com",
+        "password_hash": "$2a$14$NX0SO4K4oHSENRr4jRVB5eHz2.hP7KbKKX7GGRferwClVX3R2tD02",
+        "phone_number": "+254700000000",
+        "profile_image": null,
+        "initials": null,
+        "is_active": true,
+        "is_verified": false,
+        "two_factor_enabled": false,
+        "two_factor_method": "sms",
+        "two_factor_phone": null,
+        "last_password_change": null,
+        "last_login": null,
+        "account_status": "active",
+        "status_reason": null,
+        "bio": "Senior Pharmacist",
+        "gender": "male",
+        "date_of_birth": null,
+        "age": null,
+        "blood_type": null,
+        "address": null,
+        "provider_sharing": true,
+        "research_opt_in": false,
+        "emergency_contacts": null,
+        "allergies": null,
+        "surgeries": null,
+        "visits": null,
+        "conditions": null,
+        "documents": null,
+        "specialty": null,
+        "kmpdc_license": null,
+        "hospital": null,
+        "consultation_fee": null,
+        "allow_video_consultations": false,
+        "allow_in_person_consultations": false,
+        "working_hours": null,
+        "slot_duration": null,
+        "auto_confirm_appointments": false,
+        "rating": 0,
+        "total_reviews": 0,
+        "verification_status": null,
+        "verified_at": null,
+        "verified_by": null,
+        "national_id": "12345678",
+        "vehicle_type": null,
+        "plate_number": null,
+        "driving_license_no": null,
+        "license_expiry": null,
+        "id_verified": false,
+        "license_verified": false,
+        "approved_status": null,
+        "date_approved": null,
+        "on_duty": false,
+        "emergency_contact": null,
+        "orders_made": 0,
+        "verified_by_admin": false,
+        "pharmacy_id": "3b4214d5-d689-462d-b917-b53e994d17ce",
+        "created_at": "2026-04-11T20:41:43+03:00",
+        "updated_at": "2026-04-11T20:41:43+03:00",
+        "gps_lat": "",
+        "gps_lng": ""
+    },
+    "errors": null
+}
+
+
+
+
+7. CHANGE PASSWORD
+PUT /api/change-password
+
+{
+  "current_password": "Nairobi@888",
+  "new_password": "Nairobi@123"
+}
+
+
+{
+    "success": true,
+    "message": "Password updated successfully",
+    "data": null,
     "errors": null
 }
