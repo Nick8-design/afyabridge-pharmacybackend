@@ -1,0 +1,205 @@
+reg http://127.0.0.1:3001/auth/register/complete
+
+body 
+
+pharmacy_name_legal = AfyaBridge Pharmacy Ltd
+trading_name = AfyaBridge Chemist
+business_reg_no = PVT-AB123456
+kra_pin = A123456789Z
+ppb_license_no = PPB/2026/5678
+license_expiry = 2027-12-31
+county = Nairobi
+sub_county = Westlands
+physical_address = Westlands Road, Nairobi
+gps_lat = -1.2676
+gps_lng = 36.8108
+business_phone = 0712345678
+business_email = pharmacy@afyabridge.com
+
+pharmacist_name = Kevin Rutto
+id_or_passport_no = 12345678
+pharmacist_reg_no = P/2026/12345
+practicing_license = P/2026/12345
+practicing_expiry = 2027-12-31
+pharmacist_phone = 0722000001
+pharmacist_email = pharmacist@afyabridge.com
+
+mpesa_method = PAYBILL
+short_code_number = 123456
+settlement_frequency = DAILY
+
+password = Password123!
+two_factor_enabled = true
+security_question = What is your favorite color?
+security_answer = Blue
+
+
+id_document = "link"
+practicing_license_doc = "link"
+operating_license_doc = "link"
+business_reg_cert = "link"
+kra_pin_cert ="link"
+proof_of_address_doc ="link"
+
+
+
+resp
+{
+    "success": true,
+    "message": "Pharmacy registered successfully. Welcome to AfyaBridge.",
+    "data": {
+        "user": {
+            "id": "9464e863-037b-4d3b-8448-f0e8cc525e86",
+            "role": "pharmacist",
+            "full_name": "Nixy Pedi",
+            "email": "pedinick@afyabridge.com",
+            "password_hash": "$2a$14$NX0SO4K4oHSENRr4jRVB5eHz2.hP7KbKKX7GGRferwClVX3R2tD02",
+            "phone_number": "0722000001",
+            "profile_image": null,
+            "initials": null,
+            "is_active": true,
+            "is_verified": false,
+            "two_factor_enabled": false,
+            "two_factor_method": "sms",
+            "two_factor_phone": null,
+            "last_password_change": null,
+            "last_login": null,
+            "account_status": "active",
+            "status_reason": null,
+            "bio": null,
+            "gender": null,
+            "date_of_birth": null,
+            "age": null,
+            "blood_type": null,
+            "address": null,
+            "provider_sharing": true,
+            "research_opt_in": false,
+            "emergency_contacts": null,
+            "allergies": null,
+            "surgeries": null,
+            "visits": null,
+            "conditions": null,
+            "documents": null,
+            "specialty": null,
+            "kmpdc_license": null,
+            "hospital": null,
+            "consultation_fee": null,
+            "allow_video_consultations": false,
+            "allow_in_person_consultations": false,
+            "working_hours": null,
+            "slot_duration": null,
+            "auto_confirm_appointments": false,
+            "rating": 0,
+            "total_reviews": 0,
+            "verification_status": null,
+            "verified_at": null,
+            "verified_by": null,
+            "national_id": "12345678",
+            "vehicle_type": null,
+            "plate_number": null,
+            "driving_license_no": null,
+            "license_expiry": null,
+            "id_verified": false,
+            "license_verified": false,
+            "approved_status": null,
+            "date_approved": null,
+            "on_duty": false,
+            "emergency_contact": null,
+            "orders_made": 0,
+            "verified_by_admin": false,
+            "pharmacy_id": "3b4214d5-d689-462d-b917-b53e994d17ce",
+            "created_at": "2026-04-11T20:41:43.226+03:00",
+            "updated_at": "2026-04-11T20:41:43.226+03:00",
+            "gps_lat": "",
+            "gps_lng": ""
+        }
+    },
+    "errors": null
+}
+
+
+login
+
+Endpoint
+POST /api/auth/login/
+Body (JSON)
+{
+"email": "pedinick@afyabridge.com",
+  "password": "Nairobi@888"
+}
+
+Save:
+{
+    "success": true,
+    "message": "Login successful",
+    "data": {
+        "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NzU5MzMxMzcsInJvbGUiOiJwaGFybWFjaXN0IiwidXNlcl9pZCI6Ijk0NjRlODYzLTAzN2ItNGQzYi04NDQ4LWYwZThjYzUyNWU4NiJ9.28fVaY6VhLkrMM3QeK4Vb9Rzam-T4XrknXJmDd6MUeM",
+        "refresh_token": "ref-eyJhbGciOi",
+        "user": {
+            "id": "9464e863-037b-4d3b-8448-f0e8cc525e86",
+            "role": "pharmacist",
+            "full_name": "Nixy Pedi",
+            "email": "pedinick@afyabridge.com",
+            "password_hash": "$2a$14$NX0SO4K4oHSENRr4jRVB5eHz2.hP7KbKKX7GGRferwClVX3R2tD02",
+            "phone_number": "0722000001",
+            "profile_image": null,
+            "initials": null,
+            "is_active": true,
+            "is_verified": false,
+            "two_factor_enabled": false,
+            "two_factor_method": "sms",
+            "two_factor_phone": null,
+            "last_password_change": null,
+            "last_login": null,
+            "account_status": "active",
+            "status_reason": null,
+            "bio": null,
+            "gender": null,
+            "date_of_birth": null,
+            "age": null,
+            "blood_type": null,
+            "address": null,
+            "provider_sharing": true,
+            "research_opt_in": false,
+            "emergency_contacts": null,
+            "allergies": null,
+            "surgeries": null,
+            "visits": null,
+            "conditions": null,
+            "documents": null,
+            "specialty": null,
+            "kmpdc_license": null,
+            "hospital": null,
+            "consultation_fee": null,
+            "allow_video_consultations": false,
+            "allow_in_person_consultations": false,
+            "working_hours": null,
+            "slot_duration": null,
+            "auto_confirm_appointments": false,
+            "rating": 0,
+            "total_reviews": 0,
+            "verification_status": null,
+            "verified_at": null,
+            "verified_by": null,
+            "national_id": "12345678",
+            "vehicle_type": null,
+            "plate_number": null,
+            "driving_license_no": null,
+            "license_expiry": null,
+            "id_verified": false,
+            "license_verified": false,
+            "approved_status": null,
+            "date_approved": null,
+            "on_duty": false,
+            "emergency_contact": null,
+            "orders_made": 0,
+            "verified_by_admin": false,
+            "pharmacy_id": "3b4214d5-d689-462d-b917-b53e994d17ce",
+            "created_at": "2026-04-11T20:41:43+03:00",
+            "updated_at": "2026-04-11T20:41:43+03:00",
+            "gps_lat": "",
+            "gps_lng": ""
+        }
+    },
+    "errors": null
+}

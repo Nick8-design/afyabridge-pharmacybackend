@@ -1,0 +1,1390 @@
+================================================================================
+  AFYABRIDGE — PHARMACY PORTAL BACKEND API DOCUMENTATION
+  For: Backend Developer
+  Version: 1.0
+  Base URL: https://afyabridge-pharmacybackend.onrender.com/api
+  Frontend: React (Vite) — Pharmacy Portal
+================================================================================
+
+OVERVIEW
+--------
+This document describes every API endpoint consumed by the AfyaBridge Pharmacy
+Portal frontend. Each section lists the HTTP method, exact URL path, request
+payload (if any), and the exact response shape the frontend expects.
+
+The frontend connects directly to this backend. No proxy is used.
+
+All endpoints except those listed as PUBLIC require a Bearer token:
+  Authorization: Bearer <access_token>
+
+
+STANDARD RESPONSE ENVELOPE
+---------------------------
+Every response — success or error — must follow this envelope:
+
+  {
+    "success": true | false,
+    "message": "Human-readable message",
+    "data": { ... } | [ ... ] | null,
+    "errors": { "field": ["error msg"] } | null
+  }
+
+Paginated list responses wrap inside data:
+
+  {
+    "success": true,
+    "data": {
+      "count": 42,
+      "next": "http://.../api/orders/?page=2",
+      "previous": null,
+      "results": [ ... ]
+    }
+  }
+
+HTTP Status Codes used:
+  200 OK            — success, data returned
+  201 Created       — resource created
+  400 Bad Request   — validation error or business rule violation
+  401 Unauthorized  — missing or invalid token
+  403 Forbidden     — authenticated but not permitted
+  404 Not Found     — resource does not exist
+  500 Server Error  — unexpected server error
+
+
+================================================================================
+  1. AUTHENTICATION
+================================================================================
+
+All auth endpoints are PUBLIC — no token required.
+
+--------------------------------------------------------------------------------
+POST /auth/login/
+--------------------------------------------------------------------------------
+Description: Authenticate a pharmacy user and receive tokens.
+
+Request Body (JSON):
+  {
+    "email": "pharmacist@afyabridge.com",   // required
+    "password": "Password123!"              // required, min 8 chars
+  }
+
+Response 200 OK:
+  {
+    "success": true,
+    "message": "Login successful",
+    "data": {
+      "access_token": "<jwt>",
+      "refresh_token": "<jwt>",
+      "user": {
+        "id": "uuid",
+        "email": "pharmacist@afyabridge.com",
+        "full_name": "Kevin Rutto",
+        "phone_number": "+254712345678",
+        "role": "pharmacist",
+        "pharmacy_id": "uuid",
+        "account_status": "active",
+        "is_active": true
+      }
+    }
+  }
+
+Response 400 (wrong credentials):
+  {
+    "success": false,
+    "message": "Invalid email or password",
+    "data": null,
+    "errors": null
+  }
+
+Notes:
+  - The frontend stores access_token and refresh_token in localStorage.
+  - The frontend reads user.pharmacy_id to determine if the account is linked
+    to a pharmacy. If pharmacy_id is null or missing the dashboard shows a
+    "not linked" warning.
+  - Tokens expire after 60 minutes. The frontend will re-login on 401.
+
+
+--------------------------------------------------------------------------------
+POST /auth/logout/
+--------------------------------------------------------------------------------
+Description: Invalidate the refresh token (blacklist it).
+Auth: Required
+
+Request Body (JSON):
+  {
+    "refresh_token": "<refresh_jwt>"   // required
+  }
+
+Response 200 OK:
+  {
+    "success": true,
+    "message": "Logged out successfully",
+    "data": null,
+    "errors": null
+  }
+
+
+--------------------------------------------------------------------------------
+GET /auth/profile/
+--------------------------------------------------------------------------------
+Description: Return the authenticated user's profile.
+Auth: Required
+
+Response 200 OK:
+  {
+    "success": true,
+    "data": {
+      "id": "uuid",
+      "email": "pharmacist@afyabridge.com",
+      "full_name": "Kevin Rutto",
+      "phone_number": "+254712345678",
+      "role": "pharmacist",
+      "pharmacy_id": "uuid",
+      "account_status": "active",
+      "is_active": true,
+      "photo_url": "https://cdn.example.com/photo.jpg" | null
+    }
+  }
+
+Notes:
+  - The frontend reads pharmacy_id as a flat UUID field (not a nested object).
+  - If pharmacy.name is needed in the dashboard, embed a nested pharmacy object:
+      "pharmacy": { "id": "uuid", "name": "Mikindani Chemist" }
+    This is optional but improves the dashboard display.
+
+
+--------------------------------------------------------------------------------
+PUT /auth/profile/
+--------------------------------------------------------------------------------
+Description: Update profile fields (partial update supported).
+Auth: Required
+
+Request Body (JSON — send only fields to update):
+  {
+    "full_name": "Kevin Rutto",
+    "phone_number": "+254712345678",
+    "bio": "Senior Pharmacist",
+    "gender": "male"
+  }
+
+Response 200 OK:
+  {
+    "success": true,
+    "message": "Profile updated",
+    "data": { ...updated profile fields... }
+  }
+
+
+--------------------------------------------------------------------------------
+PATCH /auth/profile/photo/
+--------------------------------------------------------------------------------
+Description: Upload or replace the user's profile photo.
+Auth: Required
+Content-Type: multipart/form-data
+
+Form Fields:
+  photo: <image file>   // JPG, PNG, GIF — max 800KB
+
+Response 200 OK:
+  {
+    "success": true,
+    "message": "Photo updated",
+    "data": { ...updated profile with photo_url... }
+  }
+
+
+--------------------------------------------------------------------------------
+DELETE /auth/profile/photo/
+--------------------------------------------------------------------------------
+Description: Remove the user's profile photo.
+Auth: Required
+
+Response 200 OK:
+  {
+    "success": true,
+    "message": "Photo removed",
+    "data": null
+  }
+
+
+--------------------------------------------------------------------------------
+PUT /auth/change-password/
+--------------------------------------------------------------------------------
+Description: Change the authenticated user's password.
+Auth: Required
+
+Request Body (JSON):
+  {
+    "current_password": "OldPassword123!",   // required
+    "new_password": "NewPassword456!"        // required, min 8 chars
+  }
+
+Response 200 OK:
+  {
+    "success": true,
+    "message": "Password updated successfully",
+    "data": null
+  }
+
+Response 400 (wrong current password):
+  {
+    "success": false,
+    "message": "Current password is incorrect",
+    "data": null,
+    "errors": null
+  }
+
+
+--------------------------------------------------------------------------------
+POST /auth/forgot-password/
+--------------------------------------------------------------------------------
+Description: Send a password reset link to the given email.
+Auth: PUBLIC
+
+Request Body (JSON):
+  {
+    "email": "pharmacist@afyabridge.com"   // required
+  }
+
+Response 200 OK (always — do not confirm if email exists for security):
+  {
+    "success": true,
+    "message": "If an account exists for that email, a reset link has been sent",
+    "data": {
+      "message": "If an account exists, you will receive a reset link.",
+      "token": "reset-token-string",
+      "reset_url": "http://localhost:5173/auth/resetPassword?token=abc123"
+    }
+  }
+
+Notes:
+  - The reset_url must use the path /auth/resetPassword (capital P).
+  - The token is appended as ?token=<value> query parameter.
+
+
+--------------------------------------------------------------------------------
+POST /auth/reset-password/
+--------------------------------------------------------------------------------
+Description: Set a new password using the reset token.
+Auth: PUBLIC
+
+Request Body (JSON):
+  {
+    "token": "abc123...",          // required — from the reset link
+    "password": "NewPassword456!" // required, min 8 chars
+  }
+
+Response 200 OK:
+  {
+    "success": true,
+    "message": "Password reset successfully. You can now log in.",
+    "data": null
+  }
+
+Response 400 (token invalid or expired):
+  {
+    "success": false,
+    "message": "This reset link is invalid or has expired.",
+    "data": null,
+    "errors": null
+  }
+
+
+--------------------------------------------------------------------------------
+POST /auth/otp/send/
+--------------------------------------------------------------------------------
+Description: Send an OTP to the given email.
+Auth: PUBLIC
+
+Request Body (JSON):
+  {
+    "email": "pharmacist@afyabridge.com"   // required
+  }
+
+Response 200 OK:
+  {
+    "success": true,
+    "message": "OTP sent to your email",
+    "data": null
+  }
+
+
+--------------------------------------------------------------------------------
+POST /auth/otp/verify/
+--------------------------------------------------------------------------------
+Description: Verify a phone OTP.
+Auth: PUBLIC
+
+Request Body (JSON):
+  {
+    "phone": "+254712345678",   // required
+    "otp_code": "847291"        // required, 6-digit code
+  }
+
+Response 200 OK:
+  {
+    "success": true,
+    "message": "OTP verified successfully",
+    "data": null
+  }
+
+Response 400 (wrong or expired OTP):
+  {
+    "success": false,
+    "message": "Invalid or expired OTP code",
+    "data": null,
+    "errors": null
+  }
+
+
+================================================================================
+  2. PHARMACY REGISTRATION
+================================================================================
+
+The frontend collects all registration data across a multi-step UI form and
+sends everything in a SINGLE request to this one endpoint. No step-by-step
+endpoints are needed.
+
+--------------------------------------------------------------------------------
+POST /auth/register/complete/
+--------------------------------------------------------------------------------
+Description: Register a new pharmacy and create the pharmacist account.
+Auth: PUBLIC
+Content-Type: multipart/form-data
+
+Form Fields:
+
+  PHARMACY / BUSINESS INFORMATION:
+    pharmacy_name_legal     string   required  Legal registered name
+    trading_name            string   optional  Brand/storefront name
+    business_reg_no         string   required  e.g. PVT-ABC123
+    kra_pin                 string   required  e.g. A012345678Z
+    ppb_license_no          string   required  e.g. PPB/2024/1234
+    license_expiry          date     required  Format: YYYY-MM-DD
+    county                  string   required  Kenyan county
+    sub_county              string   optional
+    physical_address        string   required
+    gps_lat                 number   optional  GPS latitude (6 decimal places)
+    gps_lng                 number   optional  GPS longitude (6 decimal places)
+    business_phone          string   required  Kenyan format e.g. 0712345678
+    business_email          string   required  Valid email
+
+  SUPERINTENDENT PHARMACIST DETAILS:
+    pharmacist_name         string   required  Full legal name
+    id_or_passport_no       string   required  National ID or Passport number
+    pharmacist_reg_no       string   required  e.g. P/2024/12345
+    practicing_license      string   required  e.g. P/2024/12345
+    practicing_expiry       date     required  Format: YYYY-MM-DD
+    pharmacist_phone        string   required
+    pharmacist_email        string   required
+
+  DOCUMENT UPLOADS (files):
+    id_document             file     required  Superintendent ID/Passport (PDF/JPG/PNG max 5MB)
+    practicing_license_doc  file     required  Practicing License document
+    operating_license_doc   file     required  Pharmacy Operating License
+    business_reg_cert       file     required  Business Registration Certificate
+    kra_pin_cert            file     required  KRA PIN Certificate
+    proof_of_address_doc    file     required  Utility bill or Lease agreement
+
+  FINANCIAL / MPESA SETUP:
+    mpesa_method            string   optional  e.g. "PAYBILL"
+    short_code_number       string   optional  Last 6 digits of M-Pesa number
+    settlement_frequency    string   optional  "DAILY" | "WEEKLY" | "MONTHLY"
+
+  ACCOUNT SECURITY:
+    password                string   required  Min 8 chars, uppercase, number, symbol
+    two_factor_enabled      boolean  optional  Default: true
+    security_question       string   optional
+    security_answer         string   optional
+
+Response 201 Created:
+  {
+    "success": true,
+    "message": "Pharmacy registered successfully. Welcome to AfyaBridge.",
+    "data": {
+      "access_token": "<jwt>",
+      "refresh_token": "<jwt>",
+      "user": {
+        "id": "uuid",
+        "email": "pharmacist@afyabridge.com",
+        "full_name": "Kevin Rutto",
+        "role": "pharmacist",
+        "pharmacy_id": "uuid"
+      }
+    }
+  }
+
+Notes:
+  - On success the frontend immediately logs the user in using the returned
+    tokens and redirects to /dashboard. No separate login step is needed.
+  - If registration succeeds but approval is required before the account is
+    fully active, return pharmacy_id in the user object but set
+    account_status to "pending_approval". The dashboard will show a
+    "not linked" / pending state.
+
+Response 400 (validation error):
+  {
+    "success": false,
+    "message": "Registration failed. Please review your details.",
+    "data": null,
+    "errors": {
+      "business_reg_no": ["This registration number already exists."],
+      "kra_pin": ["Invalid KRA PIN format."]
+    }
+  }
+
+
+================================================================================
+  3. ORDER MANAGEMENT
+================================================================================
+
+Orders are the core module of the pharmacy portal. A pharmacy user manages
+orders from creation through to delivery or direct dispensing.
+
+Order Lifecycle:
+  pending → processing → ready → delivered   (pickup: patient collects in store)
+  pending → processing → ready → dispatched  (delivery: rider assigned)
+  Any status except delivered/dispatched → cancelled
+
+--------------------------------------------------------------------------------
+GET /orders/
+--------------------------------------------------------------------------------
+Description: List all orders for the authenticated pharmacy.
+Auth: Required
+
+Query Parameters:
+  status      string   optional  pending | processing | ready | dispatched |
+                                 delivered | cancelled
+  priority    string   optional  normal | urgent
+  q           string   optional  Search by patient name (case-insensitive)
+  page        integer  optional  Default: 1
+  page_size   integer  optional  Default: 20, max: 100
+
+Response 200 OK:
+  {
+    "success": true,
+    "data": {
+      "count": 12,
+      "next": "/api/orders/?page=2",
+      "previous": null,
+      "results": [
+        {
+          "id": "uuid",
+          "order_number": "ORD-3B6CB08A",
+          "patient_name": "Victoria Atieno",
+          "patient_phone": "+254722000001",
+          "delivery_type": "pickup",        // "pickup" | "home_delivery"
+          "status": "pending",
+          "priority": "normal",             // "normal" | "urgent"
+          "total_amount": "450.00",
+          "payment_status": "unpaid",       // "paid" | "unpaid" | "pending"
+          "payment_method": "cash",         // "cash" | "mpesa" | "insurance"
+          "created_at": "2026-04-07T14:00:00Z",
+          "items": [
+            {
+              "drug_name": "Amoxicillin 500mg",
+              "dosage": "500mg",
+              "frequency": "Twice daily",
+              "quantity": 21
+            }
+          ]
+        }
+      ]
+    }
+  }
+
+Response 400 (pharmacy not linked):
+  {
+    "success": false,
+    "message": "Your account is not linked to a pharmacy",
+    "data": null,
+    "errors": null
+  }
+
+
+--------------------------------------------------------------------------------
+GET /orders/today/
+--------------------------------------------------------------------------------
+Description: Get all orders created today.
+Auth: Required
+
+Response 200 OK:
+  {
+    "success": true,
+    "data": {
+      "count": 5,
+      "results": [ ...order objects... ]
+    }
+  }
+
+
+--------------------------------------------------------------------------------
+GET /orders/ready/
+--------------------------------------------------------------------------------
+Description: Get all orders with status = ready.
+Auth: Required
+
+Response 200 OK:
+  {
+    "success": true,
+    "data": {
+      "count": 3,
+      "results": [ ...order objects... ]
+    }
+  }
+
+
+--------------------------------------------------------------------------------
+GET /orders/riders/available/
+--------------------------------------------------------------------------------
+Description: List all delivery riders who are currently on duty.
+Auth: Required
+
+Response 200 OK:
+  {
+    "success": true,
+    "data": [
+      {
+        "id": "uuid",
+        "full_name": "James Kamau",
+        "phone_number": "+254733000002",
+        "vehicle_type": "Motorbike",
+        "plate_number": "KDA 123A"
+      }
+    ]
+  }
+
+Notes:
+  - Returns only riders where role=rider, is_active=true, on_duty=true.
+  - Used by the "Assign Rider" modal on the Orders page.
+
+
+--------------------------------------------------------------------------------
+GET /orders/{order_id}/
+--------------------------------------------------------------------------------
+Description: Get full details of a single order.
+Auth: Required
+
+Path Parameter:
+  order_id   uuid   required
+
+Response 200 OK:
+  {
+    "success": true,
+    "data": { ...full order object... }
+  }
+
+
+--------------------------------------------------------------------------------
+PATCH /orders/{order_id}/status/
+--------------------------------------------------------------------------------
+Description: Update the status of an order.
+Auth: Required
+
+Path Parameter:
+  order_id   uuid   required
+
+Request Body (JSON):
+  {
+    "status": "processing"   // required: pending|processing|ready|dispatched|delivered|cancelled
+  }
+
+Response 200 OK:
+  {
+    "success": true,
+    "message": "Order status updated",
+    "data": {
+      "id": "uuid",
+      "order_number": "ORD-3B6CB08A",
+      "status": "processing"
+    }
+  }
+
+Response 400 (invalid status transition):
+  {
+    "success": false,
+    "message": "Cannot move order from delivered to pending",
+    "data": null,
+    "errors": null
+  }
+
+
+--------------------------------------------------------------------------------
+POST /orders/{order_id}/cancel/
+--------------------------------------------------------------------------------
+Description: Cancel an order. Cannot cancel delivered or dispatched orders.
+Auth: Required
+
+Path Parameter:
+  order_id   uuid   required
+
+Request Body (JSON):
+  {
+    "reason": "Patient requested cancellation"   // optional
+  }
+
+Response 200 OK:
+  {
+    "success": true,
+    "message": "Order cancelled",
+    "data": {
+      "id": "uuid",
+      "status": "cancelled"
+    }
+  }
+
+Response 400 (already delivered or dispatched):
+  {
+    "success": false,
+    "message": "Cannot cancel an order that has already been dispatched or delivered",
+    "data": null,
+    "errors": null
+  }
+
+
+--------------------------------------------------------------------------------
+POST /orders/{order_id}/dispense/
+--------------------------------------------------------------------------------
+Description: Dispense an order directly to a patient who walks in (pickup).
+Auth: Required
+
+Prerequisites:
+  - Order status must be "ready"
+  - Order delivery_type must be "pickup"
+  - Sufficient inventory must exist for each item
+
+Path Parameter:
+  order_id   uuid   required
+
+Request Body (JSON):
+  {
+    "instructions": "Take with food after meals"   // optional
+  }
+
+What happens on success:
+  1. Inventory quantity decreases for each drug in the order
+  2. Order status changes to "delivered"
+  3. Dispensing record created
+
+Response 200 OK:
+  {
+    "success": true,
+    "message": "Order dispensed successfully to Victoria Atieno",
+    "data": {
+      "order_id": "uuid",
+      "order_number": "ORD-3B6CB08A",
+      "patient_name": "Victoria Atieno",
+      "status": "delivered",
+      "items_dispensed": 1,
+      "dispatched_records": [
+        {
+          "drug_name": "Amoxicillin 500mg",
+          "quantity": 21,
+          "dispensed_at": "2026-04-07T14:30:00Z"
+        }
+      ]
+    }
+  }
+
+Response 400 (order not ready):
+  {
+    "success": false,
+    "message": "Order must be \"ready\" to dispense. Current status: processing",
+    "data": null,
+    "errors": null
+  }
+
+Response 400 (insufficient stock):
+  {
+    "success": false,
+    "message": "Insufficient stock for some items",
+    "data": null,
+    "errors": {
+      "stock_errors": [
+        "Amoxicillin 500mg: need 21, only 5 in stock"
+      ]
+    }
+  }
+
+
+--------------------------------------------------------------------------------
+POST /orders/{order_id}/assign-rider/
+--------------------------------------------------------------------------------
+Description: Assign a rider for home delivery of a ready order.
+Auth: Required
+
+Prerequisites:
+  - Order status must be "ready"
+  - Rider must be on_duty=true
+
+Path Parameter:
+  order_id   uuid   required
+
+Request Body (JSON):
+  {
+    "rider_id": "uuid",                                    // required
+    "pickup_location": "Mikindani Chemist, Ground Floor",  // optional
+    "delivery_notes": "Handle with care — fragile",        // optional
+    "charges": 250,                                        // optional, number in KES
+    "estimated_delivery_time": "45 minutes"               // optional
+  }
+
+What happens on success:
+  1. Inventory quantity decreases for each drug
+  2. A Delivery record is created with an OTP code
+  3. Order status changes to "dispatched"
+
+Response 200 OK:
+  {
+    "success": true,
+    "message": "Rider assigned successfully",
+    "data": {
+      "order_id": "uuid",
+      "order_number": "ORD-3B6CB08A",
+      "status": "dispatched",
+      "rider": "James Kamau",
+      "delivery_id": "uuid",
+      "package_number": "PKG-3B6CB08A",
+      "otp_code": "847291"
+    }
+  }
+
+Response 400 (rider not on duty):
+  {
+    "success": false,
+    "message": "Rider James Kamau is not currently on duty. Select an on-duty rider.",
+    "data": null,
+    "errors": null
+  }
+
+
+--------------------------------------------------------------------------------
+GET /orders/patient/{patient_id}/history/
+--------------------------------------------------------------------------------
+Description: Get all dispensed medications for a patient.
+Auth: Required
+
+Path Parameter:
+  patient_id   uuid   required
+
+Response 200 OK:
+  {
+    "success": true,
+    "data": [
+      {
+        "drug_name": "Amoxicillin 500mg",
+        "dosage": "500mg",
+        "frequency": "Twice daily",
+        "quantity": 21,
+        "dispensed_by": "uuid",
+        "pharmacy_id": "uuid",
+        "created_at": "2026-04-07T14:30:00Z"
+      }
+    ]
+  }
+
+
+================================================================================
+  4. INVENTORY MANAGEMENT
+================================================================================
+
+The pharmacy manages its drug stock through these endpoints. The frontend
+shows a table with search, category filter, and pagination.
+
+--------------------------------------------------------------------------------
+GET /inventory/
+--------------------------------------------------------------------------------
+Description: List all drugs in the pharmacy's inventory.
+Auth: Required
+
+Query Parameters:
+  category    string   optional  Filter by category (see categories below)
+  q           string   optional  Search by drug name (case-insensitive)
+  page        integer  optional  Default: 1
+  page_size   integer  optional
+
+Drug Categories accepted:
+  analgesic | antibiotic | antifungal | cardiovascular |
+  chronic | respiratory | vitamin | other
+
+Response 200 OK:
+  {
+    "success": true,
+    "data": {
+      "count": 10,
+      "next": null,
+      "previous": null,
+      "results": [
+        {
+          "id": "uuid",
+          "drug_name": "Amoxicillin 500mg",
+          "category": "antibiotic",
+          "dosage_form": "tablet",
+          "quantity_in_stock": 150,
+          "reorder_level": 20,
+          "unit_price": "45.00",
+          "is_active": true
+        }
+      ]
+    }
+  }
+
+
+--------------------------------------------------------------------------------
+GET /inventory/{drug_id}/
+--------------------------------------------------------------------------------
+Description: Get details of a single drug.
+Auth: Required
+
+Response 200 OK:
+  {
+    "success": true,
+    "data": { ...full drug object... }
+  }
+
+
+--------------------------------------------------------------------------------
+POST /inventory/
+--------------------------------------------------------------------------------
+Description: Add a new drug to the pharmacy's inventory.
+Auth: Required
+
+Request Body (JSON):
+  {
+    "drug_name": "Amoxicillin 500mg",   // required
+    "category": "antibiotic",           // required
+    "quantity_in_stock": 150,           // required, integer
+    "reorder_level": 20,                // required, integer
+    "dosage_form": "tablet",            // optional: tablet|capsule|syrup|injection|cream|drops|inhaler|other
+    "unit_price": 45.00                 // required, decimal (KES)
+  }
+
+Response 201 Created:
+  {
+    "success": true,
+    "message": "Drug added to inventory",
+    "data": {
+      "id": "uuid",
+      "drug_name": "Amoxicillin 500mg",
+      ...
+    }
+  }
+
+
+--------------------------------------------------------------------------------
+PUT /inventory/{drug_id}/
+--------------------------------------------------------------------------------
+Description: Update an existing drug's details.
+Auth: Required
+
+Request Body (JSON — same fields as POST /inventory/):
+  {
+    "drug_name": "Amoxicillin 500mg",
+    "category": "antibiotic",
+    "quantity_in_stock": 150,
+    "reorder_level": 20,
+    "dosage_form": "tablet",
+    "unit_price": 45.00
+  }
+
+Response 200 OK:
+  {
+    "success": true,
+    "message": "Drug updated",
+    "data": { ...updated drug object... }
+  }
+
+
+--------------------------------------------------------------------------------
+DELETE /inventory/{drug_id}/
+--------------------------------------------------------------------------------
+Description: Soft-delete a drug (sets is_active=false, does not remove record).
+Auth: Required
+
+Response 200 OK:
+  {
+    "success": true,
+    "message": "Drug removed from active inventory",
+    "data": null
+  }
+
+
+--------------------------------------------------------------------------------
+GET /inventory/low-stock/
+--------------------------------------------------------------------------------
+Description: Get drugs where quantity_in_stock is at or below reorder_level.
+Auth: Required
+
+Response 200 OK:
+  {
+    "success": true,
+    "data": [
+      {
+        "id": "uuid",
+        "drug_name": "Metformin 500mg",
+        "category": "chronic",
+        "quantity_in_stock": 4,
+        "reorder_level": 20
+      }
+    ]
+  }
+
+
+--------------------------------------------------------------------------------
+GET /inventory/expiring/
+--------------------------------------------------------------------------------
+Description: Get drugs with batches expiring within N days.
+Auth: Required
+
+Query Parameters:
+  days   integer   optional   Lookahead window in days. Default: 30
+
+Response 200 OK:
+  {
+    "success": true,
+    "data": [
+      {
+        "id": "uuid",
+        "drug_name": "Metformin 500mg",
+        "batch_no": "BATCH-2026-001",
+        "expiry_date": "2026-05-10",
+        "quantity_in_stock": 40
+      }
+    ]
+  }
+
+
+--------------------------------------------------------------------------------
+GET /inventory/dashboard/
+--------------------------------------------------------------------------------
+Description: Get a summary of inventory statistics for the dashboard widgets.
+Auth: Required
+
+Response 200 OK:
+  {
+    "success": true,
+    "data": {
+      "total_skus": 45,
+      "low_stock_count": 3,
+      "critical_count": 1,
+      "expiring_count": 2
+    }
+  }
+
+Notes:
+  - critical_count = drugs where quantity_in_stock is critically low (e.g. <= 5)
+  - expiring_count = drugs expiring within the next 30 days
+
+
+--------------------------------------------------------------------------------
+POST /inventory/{drug_id}/restock/
+--------------------------------------------------------------------------------
+Description: Add a new batch to a drug and increase its stock level.
+Auth: Required
+
+Path Parameter:
+  drug_id   uuid   required
+
+Request Body (JSON):
+  {
+    "quantity": 100,               // required, integer — units to add
+    "batch_no": "BATCH-2026-001",  // required
+    "expiry_date": "2028-06-30",   // required, format: YYYY-MM-DD
+    "supplier_id": "uuid"          // optional
+  }
+
+Response 200 OK:
+  {
+    "success": true,
+    "message": "Stock updated",
+    "data": {
+      "drug_id": "uuid",
+      "drug_name": "Amoxicillin 500mg",
+      "new_stock_level": 250,
+      "batch_no": "BATCH-2026-001",
+      "expiry_date": "2028-06-30"
+    }
+  }
+
+
+================================================================================
+  5. DELIVERIES
+================================================================================
+
+The deliveries module tracks the movement of orders from the pharmacy to the
+patient. Delivery records are created automatically when a rider is assigned
+to an order via POST /orders/{id}/assign-rider/.
+
+--------------------------------------------------------------------------------
+GET /deliveries/
+--------------------------------------------------------------------------------
+Description: List all deliveries for the pharmacy.
+Auth: Required
+
+Query Parameters:
+  status   string   optional   assigned | picked_up | in_transit | delivered | failed
+
+Response 200 OK:
+  {
+    "success": true,
+    "data": [
+      {
+        "id": "uuid",
+        "package_number": "PKG-3B6CB08A",
+        "order_id": "uuid",
+        "rider_id": "uuid",
+        "rider_name": "James Kamau",
+        "status": "assigned",              // assigned|picked_up|in_transit|delivered|failed
+        "pickup_location": "Mikindani Chemist",
+        "dropoff_location": "Karen, Nairobi",
+        "otp_code": "847291",
+        "charges": "250.00",
+        "pickup_lat": null,
+        "pickup_lng": null,
+        "created_at": "2026-04-07T14:30:00Z",
+        "delivered_at": null
+      }
+    ]
+  }
+
+Notes:
+  - The frontend map pins use pickup_lat and pickup_lng if available.
+    If null the map defaults to Nairobi center.
+  - otp_code is visible in the delivery list — the pharmacist reads it to
+    the rider or confirms it when the patient calls.
+
+
+--------------------------------------------------------------------------------
+PATCH /deliveries/{delivery_id}/status/
+--------------------------------------------------------------------------------
+Description: Update the status of a delivery (used by rider app and pharmacy).
+Auth: Required
+
+Path Parameter:
+  delivery_id   uuid   required
+
+Request Body (JSON):
+  {
+    "status": "picked_up",     // required: assigned|picked_up|in_transit|delivered|failed
+    "pickup_lat": -1.286389,   // optional — GPS at pickup point
+    "pickup_lng": 36.817223    // optional
+  }
+
+Response 200 OK:
+  {
+    "success": true,
+    "message": "Delivery status updated",
+    "data": {
+      "id": "uuid",
+      "status": "picked_up"
+    }
+  }
+
+
+--------------------------------------------------------------------------------
+POST /deliveries/{delivery_id}/confirm/
+--------------------------------------------------------------------------------
+Description: Confirm delivery using the OTP code provided by the patient.
+Auth: Required
+
+Path Parameter:
+  delivery_id   uuid   required
+
+Request Body (JSON):
+  {
+    "otp_code": "847291"   // required, 6-digit code
+  }
+
+What happens on success:
+  1. Delivery status changes to "delivered"
+  2. Linked order status changes to "delivered"
+  3. delivered_at timestamp is recorded
+
+Response 200 OK:
+  {
+    "success": true,
+    "message": "Delivery confirmed successfully",
+    "data": {
+      "delivery_id": "uuid",
+      "order_id": "uuid",
+      "status": "delivered",
+      "delivered_at": "2026-04-07T15:45:00Z"
+    }
+  }
+
+Response 400 (wrong OTP):
+  {
+    "success": false,
+    "message": "Invalid OTP code. Please check and try again.",
+    "data": null,
+    "errors": null
+  }
+
+
+================================================================================
+  6. REPORTING / DASHBOARD
+================================================================================
+
+The dashboard home page uses this endpoint to populate its KPI stat cards.
+
+--------------------------------------------------------------------------------
+GET /reporting/dashboard/
+--------------------------------------------------------------------------------
+Description: Return KPI statistics for the pharmacy dashboard.
+Auth: Required
+
+Response 200 OK:
+  {
+    "success": true,
+    "data": {
+      "pending_orders": 8,
+      "low_stock_alerts": 3,
+      "ready_for_pickup": 2,
+      "active_deliveries": 4,
+      "today_revenue": "12450.00"
+    }
+  }
+
+Notes:
+  - The frontend reads these exact field names:
+      pending_orders      → "Pending Orders" KPI card
+      low_stock_alerts    → "Low Stock Alerts" KPI card
+      ready_for_pickup    → "Ready for Pickup" KPI card
+      active_deliveries   → "Active Deliveries" KPI card
+      today_revenue       → "Today's Revenue" KPI card (formatted as KES)
+  - today_revenue should be a string decimal e.g. "12450.00"
+  - All fields default to 0 if no data exists — do not return null for these.
+
+
+================================================================================
+  7. SETTINGS
+================================================================================
+
+--------------------------------------------------------------------------------
+GET /settings/pharmacy/
+--------------------------------------------------------------------------------
+Description: Get the pharmacy's settings and configuration.
+Auth: Required
+
+Response 200 OK:
+  {
+    "success": true,
+    "data": {
+      "id": "uuid",
+      "name": "Mikindani Chemist",
+      "phone": "0712345678",
+      "email": "info@mikindani.co.ke",
+      "license_number": "PPB/2024/1234",
+      "logo_url": "https://cdn.example.com/logo.jpg" | null,
+      "delivery_zones": ["Westlands", "Kilimani", "Karen"],
+      "county": "Nairobi"
+    }
+  }
+
+
+--------------------------------------------------------------------------------
+PUT /settings/pharmacy/
+--------------------------------------------------------------------------------
+Description: Update pharmacy settings.
+Auth: Required
+
+Request Body (JSON — send only fields to update):
+  {
+    "name": "Mikindani Chemist",
+    "phone": "0712345678",
+    "email": "info@mikindani.co.ke",
+    "delivery_zones": ["Westlands", "Kilimani", "Karen"]
+  }
+
+Response 200 OK:
+  {
+    "success": true,
+    "message": "Pharmacy settings updated",
+    "data": { ...updated settings... }
+  }
+
+
+--------------------------------------------------------------------------------
+PATCH /settings/pharmacy/logo/
+--------------------------------------------------------------------------------
+Description: Upload or replace the pharmacy logo.
+Auth: Required
+Content-Type: multipart/form-data
+
+Form Fields:
+  logo   file   required   JPG or PNG
+
+Response 200 OK:
+  {
+    "success": true,
+    "message": "Logo updated",
+    "data": { ...pharmacy settings with updated logo_url... }
+  }
+
+
+--------------------------------------------------------------------------------
+GET /settings/pharmacy/hours/
+--------------------------------------------------------------------------------
+Description: Get the pharmacy's operating hours.
+Auth: Required
+
+Response 200 OK:
+  {
+    "success": true,
+    "data": [
+      {
+        "day_of_week": "MON",
+        "open_time": "08:00",
+        "close_time": "20:00",
+        "is_closed": false
+      },
+      {
+        "day_of_week": "SUN",
+        "open_time": "09:00",
+        "close_time": "17:00",
+        "is_closed": false
+      }
+    ]
+  }
+
+Notes:
+  - day_of_week values: MON | TUE | WED | THU | FRI | SAT | SUN
+  - Return all 7 days even if some are closed (set is_closed: true)
+
+
+--------------------------------------------------------------------------------
+PUT /settings/pharmacy/hours/
+--------------------------------------------------------------------------------
+Description: Update operating hours for all days.
+Auth: Required
+
+Request Body (JSON):
+  {
+    "hours": [
+      {
+        "day_of_week": "MON",
+        "open_time": "08:00",
+        "close_time": "20:00",
+        "is_closed": false
+      },
+      {
+        "day_of_week": "SUN",
+        "open_time": "00:00",
+        "close_time": "00:00",
+        "is_closed": true
+      }
+    ]
+  }
+
+Response 200 OK:
+  {
+    "success": true,
+    "message": "Operating hours updated",
+    "data": [ ...updated hours array... ]
+  }
+
+
+================================================================================
+  8. AUTHENTICATION & SECURITY RULES
+================================================================================
+
+Token Lifecycle:
+  - Access token expires after 60 minutes.
+  - Refresh token is used to get a new access token.
+  - On 401 the frontend clears localStorage and redirects to /auth/login/.
+
+401 Behaviour:
+  The frontend only logs out on 401 if the error message indicates a real
+  auth failure (contains "token", "credentials", or "authentication", or if
+  the message is empty). A 401 with message "Your account is not linked to a
+  pharmacy" will NOT trigger auto-logout — it is treated as a business error
+  and shown as an error message in the relevant component.
+
+  IMPORTANT: Do NOT return 401 for business logic errors like "pharmacy not
+  linked". Use 400 for those cases to avoid unintended logouts.
+
+Pharmacy Linking:
+  - A pharmacist account can exist without being linked to a pharmacy.
+  - profile.pharmacy_id being present means the account is linked.
+  - Endpoints like /orders/, /inventory/, /deliveries/ should return 400
+    (not 401) with message "Your account is not linked to a pharmacy"
+    when the pharmacy is not yet approved/linked.
+
+
+================================================================================
+  9. CORS CONFIGURATION
+================================================================================
+
+The frontend runs on:
+  Development:  http://localhost:5173
+  Production:   (your production domain)
+
+The backend must allow CORS requests from these origins with:
+  - Authorization header
+  - Content-Type header
+  - multipart/form-data (for file uploads)
+
+Methods allowed: GET, POST, PUT, PATCH, DELETE, OPTIONS
+
+
+================================================================================
+  10. QUICK REFERENCE — ALL ENDPOINTS
+================================================================================
+
+AUTH
+  POST    /auth/login/                     PUBLIC   Login
+  POST    /auth/logout/                    AUTH     Logout
+  GET     /auth/profile/                   AUTH     Get profile
+  PUT     /auth/profile/                   AUTH     Update profile
+  PATCH   /auth/profile/photo/             AUTH     Upload profile photo
+  DELETE  /auth/profile/photo/             AUTH     Remove profile photo
+  PUT     /auth/change-password/           AUTH     Change password
+  POST    /auth/forgot-password/           PUBLIC   Request reset link
+  POST    /auth/reset-password/            PUBLIC   Reset password with token
+  POST    /auth/otp/send/                  PUBLIC   Send OTP to email
+  POST    /auth/otp/verify/                PUBLIC   Verify phone OTP
+  POST    /auth/register/complete/         PUBLIC   Register pharmacy (all data at once)
+
+ORDERS
+  GET     /orders/                         AUTH     List orders (filterable)
+  GET     /orders/today/                   AUTH     Orders created today
+  GET     /orders/ready/                   AUTH     Orders with status=ready
+  GET     /orders/riders/available/        AUTH     On-duty riders
+  GET     /orders/{id}/                    AUTH     Single order detail
+  PATCH   /orders/{id}/status/             AUTH     Update order status
+  POST    /orders/{id}/cancel/             AUTH     Cancel order
+  POST    /orders/{id}/dispense/           AUTH     Dispense to walk-in patient
+  POST    /orders/{id}/assign-rider/       AUTH     Assign rider for delivery
+  GET     /orders/patient/{id}/history/    AUTH     Patient medication history
+
+INVENTORY
+  GET     /inventory/                      AUTH     List drugs
+  GET     /inventory/{id}/                 AUTH     Single drug
+  POST    /inventory/                      AUTH     Add drug
+  PUT     /inventory/{id}/                 AUTH     Update drug
+  DELETE  /inventory/{id}/                 AUTH     Soft-delete drug
+  GET     /inventory/low-stock/            AUTH     Drugs below reorder level
+  GET     /inventory/expiring/             AUTH     Drugs expiring soon
+  GET     /inventory/dashboard/            AUTH     Inventory stats summary
+  POST    /inventory/{id}/restock/         AUTH     Restock a drug (add batch)
+
+DELIVERIES
+  GET     /deliveries/                     AUTH     List deliveries
+  PATCH   /deliveries/{id}/status/         AUTH     Update delivery status
+  POST    /deliveries/{id}/confirm/        AUTH     Confirm with patient OTP
+
+REPORTING
+  GET     /reporting/dashboard/            AUTH     Dashboard KPI stats
+
+SETTINGS
+  GET     /settings/pharmacy/              AUTH     Get pharmacy settings
+  PUT     /settings/pharmacy/              AUTH     Update pharmacy settings
+  PATCH   /settings/pharmacy/logo/         AUTH     Upload pharmacy logo
+  GET     /settings/pharmacy/hours/        AUTH     Get operating hours
+  PUT     /settings/pharmacy/hours/        AUTH     Update operating hours
+
+
+================================================================================
+  END OF DOCUMENT
+  AfyaBridge Pharmacy Portal — Backend API Specification v1.0
+================================================================================
