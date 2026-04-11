@@ -568,3 +568,23 @@ res
     "errors": null
 }
 
+
+
+9. DISPENSE ORDER (PICKUP FLOW)
+
+POST /api/orders/1111-2222-3333/dispense
+
+http://127.0.0.1:3001/api/orders/26b61b06-b767-4902-8792-7cd57c050374/dispense
+
+
+{
+  "instructions": "Take after meals"
+}
+
+res 
+{
+    "success": false,
+    "message": "Order must be 'ready' and 'pickup'. Current status: pending",
+    "data": null,
+    "errors": null
+}

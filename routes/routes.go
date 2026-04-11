@@ -19,7 +19,7 @@ func SetupRoutes(app *fiber.App) {
         api := app.Group("/api")
 
 
-        
+
         auth := api.Group("/auth")
         // Public Routes
         auth.Post("/login", handlers.Login)
@@ -53,129 +53,45 @@ func SetupRoutes(app *fiber.App) {
         orders.Post("/:order_id/assign-rider", handlers.AssignRider)
         orders.Get("/patient/:patient_id/history", handlers.GetPatientOrderHistory)
 
+// Inventory Group
+inventory := api.Group("/inventory")
+{
+    inventory.Get("/", handlers.GetInventory)
+    inventory.Post("/", handlers.AddDrug)
+    inventory.Get("/dashboard", handlers.GetInventoryDashboard)
+    inventory.Post("/:drug_id/restock", handlers.RestockDrug)
+    inventory.Get("/:drug_id", handlers.GetDrugDetails) // Implement similarly to GetOrderDetails
+    inventory.Put("/:drug_id", handlers.UpdateDrug)    // Implement using tx.Save()
+    inventory.Delete("/:drug_id", handlers.DeleteDrug) // Soft delete: tx.Model().Update("is_active", false)
+}
+
+// Delivery Group
+deliveries := api.Group("/deliveries")
+{
+    deliveries.Get("/", handlers.GetDeliveries)
+    deliveries.Patch("/:delivery_id/status", handlers.UpdateDeliveryStatus)
+    deliveries.Post("/:delivery_id/confirm", handlers.ConfirmDelivery)
+}
 
 
 
+
+// Reporting
+api.Get("/reporting/dashboard", handlers.GetDashboardKPIs)
+
+// Settings Group
+settings := api.Group("/settings/pharmacy")
+{
+    settings.Get("/", handlers.GetPharmacySettings)
+    settings.Put("/", handlers.UpdatePharmacySettings)
+    settings.Get("/hours", handlers.GetPharmacyHours)
+    settings.Put("/hours", handlers.UpdatePharmacyHours)
+    // For logo upload, ensure you have a multipart form handler
+    settings.Patch("/logo", handlers.UploadPharmacyLogo) 
+}
     
 }
 
 
 
-// func SetupRoutes(app *fiber.App) {
-// 	api := app.Group("/api/v1/doctors")
 
-// 	api.Get("/ping", func (c *fiber.Ctx) error {
-// 		return c.SendString("Doctor api running")
-// 	})
-
-// 	// Public Routes
-// 	auth := api.Group("/auth")
-// 	auth.Post("/login", handlers.Login)
-// 	auth.Post("/register", handlers.Register)
-//     auth.Post("/forgot-password", handlers.ForgotPassword)
-//     auth.Post("/logout", handlers.Logout)
-
-
-//     // admin := api.Group("/admin", middleware.AdminProtect())
-// 	// admin.Get("/doctors", handlers.AdminFetchAllDoctors)
-// 	// admin.Get("/doctors/:doctorId", handlers.AdminFetchOneDoctor)
-// 	// admin.Put("/doctors/:doctorId/verify", handlers.AdminVerifyDoctor)
-// 	// admin.Put("/doctors/:doctorId/suspend", handlers.AdminSuspendDoctor)
-// 	// admin.Put("/doctors/:doctorId/lock", handlers.AdminLockDoctor)
-// 	// admin.Put("/doctors/:doctorId/activate", handlers.AdminActivateDoctor)
-// 	// admin.Delete("/doctors/:doctorId", handlers.AdminDeleteDoctor)
-
-
-// 	// Protected Routes (Require Token)
-// 	api.Use(middleware.Protected())
-
-
-//     profile := api.Group("/profile")
-//     profile.Get("/", handlers.GetDoctorProfile)
-//     profile.Put("/personal", handlers.UpdateDoctorProfile)
-    
-//     profile.Delete("/", handlers.DeleteDoctorAccount)  
-//     profile.Patch("/verify", handlers.VerifyDoctor)
- 
-//     profile.Post("/change-password", handlers.ChangePassword) 
-//     profile.Post("/2fa/enable", handlers.Enable2FA)          
-//     profile.Post("/signout-all", handlers.SignOutAll)
-    
-   
-   
-   
-   
-//     api.Use(middleware.DoctorServiceGuard())
-    
-//     api.Get("/search", handlers.GlobalSearch)
-
-
-// 	// Appointments
-//     apt := api.Group("/appointments")
-//     apt.Get("/", handlers.GetAppointments)
-//     apt.Patch("/:id/status", handlers.UpdateAppointmentStatus)
-//     apt.Get("/:id", handlers.GetAppointmentDetails)
-//     // apt.Patch("/:id/status", handlers.UpdateAppointmentStatus)
-//     apt.Post("/:id/reschedule", handlers.RescheduleAppointment)
-//     apt.Post("/:id/cancel", handlers.CancelAppointment)
-
-
-
-// 	// Patients
-// 	patients := api.Group("/patients")
-//     patients.Get("/", handlers.GetPatientsList)   
-//     // patients.Post("/", handlers.CreatePatient) 
-//     patients.Get("/:id", handlers.GetPatientDetails) 
-   
-//     patients.Post("/vitals", handlers.UpdateVitals)
-//     patients.Get("/:id/vitals", handlers.GetPatientVitals)
-
-
-// 	patients.Post("/prescriptions", handlers.CreatePrescription) 
-//     patients.Get("/:id/current/prescriptions", handlers.GetPatientPrescriptionsCurrentDoctor)
-//     patients.Get("/:id/prescriptions", handlers.GetPatientPrescriptionsAll)
-
-//     api.Post("/orders", handlers.CreateOrder) 
-//     api.Get("/pharmacies/search", handlers.GetActivePharmacies) 
-
-// // patients.Get("/:id/prescriptions/summary", handlers.GetPrescriptionSummary)
-
-
-// // patients.Post("/:id/send-to-pharmacy", handlers.SendPrescriptionToExternal)
-
-
-
-//     // Clinical - Lab Orders
-//     api.Post("/patients/:patientId/lab-orders", handlers.CreateLabOrder)
-//     api.Get("/patients/:patientId/lab-orders", handlers.GetLabOrders)
-
-// 	// consultations
-// 	consult := api.Group("/consultations")
-//     consult.Get("/queue", handlers.GetConsultationQueue)       
-//     consult.Post("/start", handlers.StartConsultation)         
- 
-//     consult.Post("/:consultationId/end", handlers.EndConsultation)
-    
-   
-
-
-//     // // Dashboard
-// 	  api.Get("/dashboard", handlers.GetDashboardStats) 
-	
-// // Notifications Group
-// notify := api.Group("/notifications")
-// notify.Get("/", handlers.GetDoctorNotifications)          // Get doctor's alerts
-// notify.Post("/send", handlers.CreateNotification)         // Doctor sends to others
-// notify.Patch("/:id/read", handlers.MarkNotificationAsRead) // Mark as read
-
-
-//       // WebSocket Endpoint (Needs to be outside middleware if token is in query)
-//     app.Get("/ws/chat/:id", websocket.New(handlers.ChatWebSocket))
-
-//     // Protected Chat API
-//     chat := api.Group("/chat")
-//     chat.Get("/history/:patientId", handlers.GetChatHistory)
-    
-//     // Media Upload for Chat (Images/Audio)
-//     chat.Post("/upload", handlers.UploadChatMedia)
-// }

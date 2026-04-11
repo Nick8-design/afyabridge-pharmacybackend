@@ -128,7 +128,7 @@ func DispenseOrder(c *fiber.Ctx) error {
 
 	var order model.Order
 	// Preload Prescription to verify items exist
-	if err := db.Preload("Prescription").First(&order, "id = ?", orderID).Error; err != nil {
+	if err := db.First(&order, "id = ?", orderID).Error; err != nil {
 		return c.Status(404).JSON(model.Response{Success: false, Message: "Order not found"})
 	}
 
@@ -246,6 +246,8 @@ func AssignRider(c *fiber.Ctx) error {
         return c.Status(404).JSON(model.Response{Success: false, Message: "Order not found"})
     }
 
+	
+
     if order.Status != "ready" {
         return c.Status(400).JSON(model.Response{
             Success: false, 
@@ -272,6 +274,18 @@ func AssignRider(c *fiber.Ctx) error {
         CreatedAt:       time.Now(),
         UpdatedAt:       time.Now(),
     }
+
+	var rider model.User
+	if err := db.First(&rider, "id = ?", input.RiderID).Error; err != nil {
+		return c.Status(404).JSON(model.Response{Success: false, Message: "Rider not found"})
+	}
+	
+	if !rider.OnDuty {
+		return c.Status(400).JSON(model.Response{
+			Success: false,
+			Message: "Rider is not currently on duty",
+		})
+	}
 
     err := db.Transaction(func(tx *gorm.DB) error {
         // Create the delivery record
