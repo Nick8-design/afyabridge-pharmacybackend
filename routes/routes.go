@@ -17,11 +17,13 @@ import (
 func SetupRoutes(app *fiber.App) {
          
         api := app.Group("/api")
+
+
+        
         auth := api.Group("/auth")
-    
         // Public Routes
         auth.Post("/login", handlers.Login)
-        auth.Post("/register/complete", handlers.RegisterComplete)
+        auth.Post("/register/complete/", handlers.RegisterComplete)
         auth.Post("/forgot-password", handlers.ForgotPassword)
         auth.Post("/reset-password", handlers.ResetPassword)
         auth.Post("/otp/send", handlers.SendOTP)
