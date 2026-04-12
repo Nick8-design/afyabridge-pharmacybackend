@@ -45,3 +45,8 @@ type Medication struct {
 	DailyLog              datatypes.JSON `json:"daily_log"`
 	AdherencePercentage   int            `json:"adherence_percentage"`
 }
+
+
+func (Medication) TableName() string {
+    return "patient_medications"
+}

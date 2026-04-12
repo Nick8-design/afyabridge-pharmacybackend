@@ -40,18 +40,25 @@ func SetupRoutes(app *fiber.App) {
         api.Put("/change-password", handlers.ChangePassword)
 
 
-        orders := api.Group("/orders")
+    // Orders
+orders := api.Group("/orders")
+{
+    orders.Get("/", handlers.GetOrders)
+    orders.Get("/today", handlers.GetOrdersToday)
+    orders.Get("/ready", handlers.GetOrdersReady)
+    orders.Get("/available", handlers.GetAvailableGlobalOrders)
+    orders.Get("/riders/available", handlers.GetAvailableRiders)
 
-        orders.Get("/", handlers.GetOrders)
-        orders.Get("/today", handlers.GetOrdersToday)
-        orders.Get("/ready", handlers.GetOrdersReady)
-        orders.Get("/riders/available", handlers.GetAvailableRiders)
-        orders.Get("/:order_id", handlers.GetOrderDetails)
-        orders.Patch("/:order_id/status", handlers.UpdateOrderStatus)
-        orders.Post("/:order_id/cancel", handlers.CancelOrder)
-        orders.Post("/:order_id/dispense", handlers.DispenseOrder)
-        orders.Post("/:order_id/assign-rider", handlers.AssignRider)
-        orders.Get("/patient/:patient_id/history", handlers.GetPatientOrderHistory)
+    orders.Get("/:order_id", handlers.GetOrderDetails)
+    orders.Patch("/:order_id/status", handlers.UpdateOrderStatus)
+
+    orders.Post("/:order_id/serve", handlers.ServeOrder) // ADD THIS
+    orders.Post("/:order_id/cancel", handlers.CancelOrder)
+    orders.Post("/:order_id/dispense", handlers.DispenseOrder)
+    orders.Post("/:order_id/assign-rider", handlers.AssignRider)
+
+    orders.Get("/patient/:patient_id/history", handlers.GetPatientOrderHistory)
+}
 
 // Inventory Group
 inventory := api.Group("/inventory")
@@ -68,12 +75,20 @@ inventory := api.Group("/inventory")
     inventory.Delete("/:drug_id", handlers.DeleteDrug) // Soft delete: tx.Model().Update("is_active", false)
 }
 
+notifications := api.Group("/notifications")
+{
+    notifications.Get("/", handlers.GetNotifications)
+    notifications.Post("/", handlers.CreateNotification)
+    notifications.Patch("/:id/read", handlers.MarkNotificationAsRead)
+}
+
 // Delivery Group
+// Deliveries
 deliveries := api.Group("/deliveries")
 {
     deliveries.Get("/", handlers.GetDeliveries)
     deliveries.Patch("/:delivery_id/status", handlers.UpdateDeliveryStatus)
-    deliveries.Post("/:delivery_id/confirm", handlers.ConfirmDelivery)
+    // deliveries.Post("/:delivery_id/confirm", handlers.ConfirmDelivery) // ADD BACK
 }
 
 

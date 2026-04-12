@@ -7,6 +7,21 @@ import (
 	"gorm.io/datatypes"
 )
 
+
+/*
+
+
+37ddd327-d062-4233-9668-fdf4a3305189
+
+2f10e30f-0b30-47d4-9f83-741a310ab537
+
+4e0da12d-b919-4a75-a74c-9310c979f033
+
+*/
+
+
+
+
 type Prescription struct {
     // Primary Key
     ID uuid.UUID `gorm:"type:char(36);primaryKey" json:"id"`

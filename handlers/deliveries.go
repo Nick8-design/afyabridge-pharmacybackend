@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
-	"gorm.io/gorm"
+
 )
 
 // GET /deliveries/
@@ -72,62 +72,6 @@ func GetDeliveries(c *fiber.Ctx) error {
 }
 
 
-
-
-// POST /deliveries/:delivery_id/confirm
-func ConfirmDelivery(c *fiber.Ctx) error {
-	deliveryID := c.Params("delivery_id")
-
-	var input struct {
-		OtpCode string `json:"otp_code"`
-	}
-
-	if err := c.BodyParser(&input); err != nil {
-		return c.Status(400).JSON(model.Response{Success: false, Message: "Invalid input"})
-	}
-
-	var delivery model.Delivery
-	if err := database.DB.First(&delivery, "id = ?", deliveryID).Error; err != nil {
-		return c.Status(404).JSON(model.Response{Success: false, Message: "Delivery not found"})
-	}
-
-	if delivery.OtpCode != input.OtpCode {
-		return c.Status(400).JSON(model.Response{
-			Success: false,
-			Message: "Invalid OTP code. Please check and try again.",
-		})
-	}
-
-	now := time.Now()
-
-	err := database.DB.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(&delivery).Updates(map[string]interface{}{
-			"status":       "delivered",
-			"delivered_at": &now,
-		}).Error; err != nil {
-			return err
-		}
-
-		return tx.Model(&model.Order{}).
-			Where("id = ?", delivery.OrderID).
-			Update("status", "delivered").Error
-	})
-
-	if err != nil {
-		return c.Status(500).JSON(model.Response{Success: false, Message: "Confirmation failed"})
-	}
-
-	return c.JSON(model.Response{
-		Success: true,
-		Message: "Delivery confirmed successfully",
-		Data: fiber.Map{
-			"delivery_id": delivery.ID,
-			"order_id":    delivery.OrderID,
-			"status":      "delivered",
-			"delivered_at": now,
-		},
-	})
-}
 
 
 // PATCH /deliveries/:delivery_id/status

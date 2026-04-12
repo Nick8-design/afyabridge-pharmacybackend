@@ -13,6 +13,7 @@ type Order struct {
 	OrderNumber    string          `gorm:"type:varchar(100);uniqueIndex" json:"order_number"`
 	PrescriptionID string          `gorm:"type:char(36);index" json:"prescription_id"`
 	PharmacyID     string          `gorm:"type:char(36);index" json:"pharmacy_id"`
+	// Prescription   Prescription    `gorm:"foreignKey:PrescriptionID" json:"prescription"`
 	PreparedBy     string          `gorm:"type:char(36)" json:"prepared_by"`
 	PatientID      string          `gorm:"type:char(36);index" json:"patient_id"`
 	PatientName    string          `gorm:"type:varchar(255)" json:"patient_name"`
@@ -22,7 +23,7 @@ type Order struct {
 	// Enums handled as strings in Go
 	DeliveryType   string          `gorm:"type:enum('pickup','home_delivery');default:'pickup'" json:"delivery_type"`
 	Priority       string          `gorm:"type:enum('urgent','normal');default:'normal'" json:"priority"`
-	Status         string          `gorm:"type:enum('pending','processing','ready','dispatched','delivered','cancelled');default:'pending'" json:"status"`
+	Status         string          `gorm:"type:enum('pending','accepted','processing','ready','dispatched','delivered','cancelled');default:'pending'" json:"status"`
 	
 	// Financial Data
 	TotalAmount    decimal.Decimal `gorm:"type:decimal(10,2);not null;default:0" json:"total_amount"`
