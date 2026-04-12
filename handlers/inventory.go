@@ -10,6 +10,25 @@ import (
 	"gorm.io/gorm"
 )
 
+// GET /inventory/expiring
+func GetExpiringDrugs(c *fiber.Ctx) error {
+	pharmacyID := c.Locals("pharmacy_id").(string)
+	days := c.QueryInt("days", 30)
+
+	var results []fiber.Map
+
+	err := database.DB.Table("stock_batches").
+		Select("drugs.id, drugs.drug_name, stock_batches.batch_number, stock_batches.expiry_date, stock_batches.quantity_remaining").
+		Joins("JOIN drugs ON drugs.id = stock_batches.drug_id").
+		Where("drugs.pharmacy_id = ? AND stock_batches.expiry_date <= ?", pharmacyID, time.Now().AddDate(0, 0, days)).
+		Scan(&results).Error
+
+	if err != nil {
+		return c.Status(500).JSON(model.Response{Success: false, Message: "Error fetching expiring drugs"})
+	}
+
+	return c.JSON(model.Response{Success: true, Data: results})
+}
 
 // GET /inventory/:drug_id
 func GetDrugDetails(c *fiber.Ctx) error {
@@ -146,8 +165,16 @@ func RestockDrug(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(500).JSON(model.Response{Success: false, Message: "Restock failed"})
 	}
-
-	return c.JSON(model.Response{Success: true, Message: "Stock updated"})
+	return c.JSON(model.Response{
+		Success: true,
+		Message: "Stock updated",
+		Data: fiber.Map{
+			"drug_id": drugID,
+			"batch_no": input.BatchNo,
+			"expiry_date": input.ExpiryDate,
+			"added_quantity": input.Quantity,
+		},
+	})
 }
 
 // GET /inventory/dashboard/

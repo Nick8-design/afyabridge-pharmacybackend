@@ -58,10 +58,13 @@ inventory := api.Group("/inventory")
 {
     inventory.Get("/", handlers.GetInventory)
     inventory.Post("/", handlers.AddDrug)
+    inventory.Get("/expiring", handlers.GetExpiringDrugs) 
     inventory.Get("/dashboard", handlers.GetInventoryDashboard)
     inventory.Post("/:drug_id/restock", handlers.RestockDrug)
+    inventory.Get("/low-stock", handlers.GetLowStock)
     inventory.Get("/:drug_id", handlers.GetDrugDetails) // Implement similarly to GetOrderDetails
-    inventory.Put("/:drug_id", handlers.UpdateDrug)    // Implement using tx.Save()
+    inventory.Put("/:drug_id", handlers.UpdateDrug)   
+   
     inventory.Delete("/:drug_id", handlers.DeleteDrug) // Soft delete: tx.Model().Update("is_active", false)
 }
 

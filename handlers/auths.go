@@ -36,9 +36,10 @@ func Login(c *fiber.Ctx) error {
 
 	// Generate JWT
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"user_id": user.ID,
-		"role":    user.Role,
-		"exp":     time.Now().Add(time.Hour * 1).Unix(), // 60 mins as per docs
+	"user_id": user.ID,
+    "role":    user.Role,
+    "exp":     time.Now().Add(time.Hour * 24 * 90).Unix(), // Set to 90 days
+    "iat":     time.Now().Unix(),
 	})
 
 	t, err := token.SignedString([]byte(os.Getenv("JWT_SECRET")))

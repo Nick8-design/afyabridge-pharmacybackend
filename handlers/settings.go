@@ -23,28 +23,91 @@ func GetPharmacySettings(c *fiber.Ctx) error {
 
 // PUT /settings/pharmacy/
 func UpdatePharmacySettings(c *fiber.Ctx) error {
-	pharmacyID := c.Locals("pharmacy_id").(string)
-	var pharmacy model.Pharmacy
-
-	if err := database.DB.First(&pharmacy, "id = ?", pharmacyID).Error; err != nil {
-		return c.Status(404).JSON(model.Response{Success: false, Message: "Pharmacy not found"})
+	pharmacyID, ok := c.Locals("pharmacy_id").(string)
+	if !ok {
+		return c.Status(400).JSON(model.Response{
+			Success: false,
+			Message: "Your account is not linked to a pharmacy",
+		})
 	}
 
-	if err := c.BodyParser(&pharmacy); err != nil {
+	var input struct {
+		Name          *string   `json:"name"`
+		Phone         *string   `json:"phone"`
+		Email         *string   `json:"email"`
+		DeliveryZones *[]string `json:"delivery_zones"`
+	}
+
+	if err := c.BodyParser(&input); err != nil {
 		return c.Status(400).JSON(model.Response{Success: false, Message: "Invalid input"})
 	}
 
-	database.DB.Save(&pharmacy)
-	return c.JSON(model.Response{Success: true, Message: "Pharmacy settings updated", Data: pharmacy})
+	updates := map[string]interface{}{}
+
+	if input.Name != nil {
+		updates["name"] = *input.Name
+	}
+	if input.Phone != nil {
+		updates["phone"] = *input.Phone
+	}
+	if input.Email != nil {
+		updates["email"] = *input.Email
+	}
+	if input.DeliveryZones != nil {
+		updates["delivery_zones"] = input.DeliveryZones
+	}
+
+	if len(updates) == 0 {
+		return c.Status(400).JSON(model.Response{Success: false, Message: "No fields to update"})
+	}
+
+	if err := database.DB.Model(&model.Pharmacy{}).
+		Where("id = ?", pharmacyID).
+		Updates(updates).Error; err != nil {
+
+		return c.Status(500).JSON(model.Response{Success: false, Message: "Update failed"})
+	}
+
+	var updated model.Pharmacy
+	database.DB.First(&updated, "id = ?", pharmacyID)
+
+	return c.JSON(model.Response{
+		Success: true,
+		Message: "Pharmacy settings updated",
+		Data:    updated,
+	})
 }
 
-// GET /settings/pharmacy/hours/
 func GetPharmacyHours(c *fiber.Ctx) error {
 	pharmacyID := c.Locals("pharmacy_id").(string)
-	var hours []model.PharmacyHour
 
+	var hours []model.PharmacyHour
 	database.DB.Where("pharmacy_id = ?", pharmacyID).Find(&hours)
-	return c.JSON(model.Response{Success: true, Data: hours})
+
+	// Ensure all 7 days exist
+	days := []string{"MON","TUE","WED","THU","FRI","SAT","SUN"}
+
+	result := []model.PharmacyHour{}
+
+	for _, day := range days {
+		found := false
+		for _, h := range hours {
+			if h.DayOfWeek == day {
+				result = append(result, h)
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			result = append(result, model.PharmacyHour{
+				DayOfWeek: day,
+				IsClosed:  true,
+			})
+		}
+	}
+
+	return c.JSON(model.Response{Success: true, Data: result})
 }
 
 // PUT /settings/pharmacy/hours/
