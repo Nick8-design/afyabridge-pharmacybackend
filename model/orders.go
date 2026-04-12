@@ -13,7 +13,7 @@ type Order struct {
 	OrderNumber    string          `gorm:"type:varchar(100);uniqueIndex" json:"order_number"`
 	PrescriptionID string          `gorm:"type:char(36);index" json:"prescription_id"`
 	PharmacyID     string          `gorm:"type:char(36);index" json:"pharmacy_id"`
-	// Prescription   Prescription    `gorm:"foreignKey:PrescriptionID" json:"prescription"`
+	Prescription   Prescription    `gorm:"foreignKey:PrescriptionID" json:"prescription"`
 	PreparedBy     string          `gorm:"type:char(36)" json:"prepared_by"`
 	PatientID      string          `gorm:"type:char(36);index" json:"patient_id"`
 	PatientName    string          `gorm:"type:varchar(255)" json:"patient_name"`

@@ -8,50 +8,49 @@ RES
     "message": "",
     "data": [
         {
-            "id": "02a17b13-8c94-4525-9fe9-11c1cbcc8578",
-            "order_number": "ORD-1775839936384-e948",
-            "prescription_id": "37ddd327-d062-4233-9668-fdf4a3305189",
-            "pharmacy_id": "88993cd443c54e55a117ed1e083e35d6",
-            "prepared_by": "",
-            "patient_id": "82d84ba4-2c2d-4c1f-b7ed-de69ea59013a",
-            "patient_name": "Peter Doe",
-            "patient_phone": "+254711112222",
-            "patient_address": "7QP4+P65, Kakamega",
-            "delivery_type": "home_delivery",
-            "priority": "normal",
-            "status": "pending",
-            "total_amount": "0",
-            "payment_status": "unpaid",
-            "payment_method": "mpesa",
-            "mpesa_ref": "",
-            "created_at": "2026-04-10T16:52:16+03:00",
-            "updated_at": "2026-04-10T16:52:16+03:00"
-        },
-        {
-            "id": "24133a97-185e-4ef4-9017-146b9900be14",
-            "order_number": "ORD-20260328-601b1",
-            "prescription_id": "37ddd327-d062-4233-9668-fdf4a3305189",
-            "pharmacy_id": "bfe4093a-d79e-47d9-85e2-2fdd036d8ca7",
-            "prepared_by": "9a74b765-97d4-44bb-84cf-b9c3305b50f9",
-            "patient_id": "faf5d862-ddba-4582-a7e6-612947295d1a",
-            "patient_name": "Movine Junior",
-            "patient_phone": "+254793317567",
-            "patient_address": "",
-            "delivery_type": "home_delivery",
-            "priority": "normal",
-            "status": "pending",
-            "total_amount": "0",
-            "payment_status": "unpaid",
-            "payment_method": "mpesa",
-            "mpesa_ref": "",
-            "created_at": "2026-03-28T21:17:16+03:00",
-            "updated_at": "2026-03-28T21:17:16+03:00"
-        },
-        {
             "id": "1a56b1b3-c44d-4b06-9823-af111bfedd21",
             "order_number": "ORD-1775665304303-e948",
             "prescription_id": "37ddd327-d062-4233-9668-fdf4a3305189",
             "pharmacy_id": "e2746829-912b-4f5d-9ec6-c5588880b590",
+            "prescription": {
+                "id": "37ddd327-d062-4233-9668-fdf4a3305189",
+                "prescription_number": "RX-130326-140146",
+                "patient_id": "45a36326-a05e-439f-85a4-189908152983",
+                "doctor_id": "16192a80-461b-4bc8-826f-7cab074a8deb",
+                "pharmacy_id": null,
+                "dispensed_by": null,
+                "patient_name": "Vallary Shallet",
+                "patient_phone": "+254702341628",
+                "patient_address": null,
+                "doctor_name": "Dr. Grace Njeri",
+                "diagnosis": null,
+                "notes": null,
+                "issue_date": "2026-03-13T00:00:00+03:00",
+                "expiry_date": null,
+                "items": [
+                    {
+                        "dosage": "1000mg",
+                        "duration": "30 days",
+                        "frequency": "Twice daily",
+                        "instructions": "Take with meals",
+                        "name": "Vitamin C 1000mg"
+                    },
+                    {
+                        "dosage": "150mg",
+                        "duration": "30 days",
+                        "frequency": "Once daily",
+                        "instructions": "Take before breakfast",
+                        "name": "Fluconazole 150mg"
+                    }
+                ],
+                "status": "pending",
+                "priority": "normal",
+                "rejection_reason": null,
+                "make_order": false,
+                "dispensed_at": null,
+                "created_at": "2026-03-13T14:01:46+03:00",
+                "updated_at": "2026-03-13T14:01:46+03:00"
+            },
             "prepared_by": "",
             "patient_id": "82d84ba4-2c2d-4c1f-b7ed-de69ea59013a",
             "patient_name": "Peter Doe",
@@ -70,7 +69,6 @@ RES
     ],
     "errors": null
 }
-
 
 
 

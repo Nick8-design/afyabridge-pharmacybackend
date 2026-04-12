@@ -7,7 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
-	"strings"
+	// "strings"
 
 	"sync"
 
@@ -21,228 +21,228 @@ import (
 	"time"
 )
 
-// func GetAvailableGlobalOrders(c *fiber.Ctx) error {
-//     pharmacyID, ok := c.Locals("pharmacy_id").(string)
-//     if !ok {
-//         return c.Status(401).JSON(model.Response{Success: false, Message: "Pharmacy session missing"})
-//     }
-//     db := database.DB
-
-//     var orders []model.Order
-//     // 1. Fetch orders and their related prescriptions in TWO queries (Batching)
-//     // GORM does this efficiently behind the scenes
-//     err := db.Preload("Prescription").Where("status = ?", "pending").Find(&orders).Error
-//     if err != nil {
-//         return c.Status(500).JSON(model.Response{Success: false, Message: "Database error"})
-//     }
-
-//     fulfillableOrders := make([]model.Order, 0) // Initialize to [] instead of null
-
-//     // 2. Concurrency Setup
-//     orderChan := make(chan model.Order, len(orders))
-//     resultChan := make(chan model.Order, len(orders))
-//     var wg sync.WaitGroup
-
-//     // Start 5 Workers
-//     for w := 0; w < 5; w++ {
-//         wg.Add(1)
-//         go func() {
-//             defer wg.Done()
-//             for order := range orderChan {
-//                 // Now we can access order.Prescription.Items directly!
-//                 hasStock, _ := checkInventoryForPrescription(pharmacyID, order.Prescription.Items)
-//                 if hasStock {
-//                     resultChan <- order
-//                 }
-//             }
-//         }()
-//     }
-
-//     // Send orders to workers
-//     for _, o := range orders {
-//         // Only process if the prescription was actually loaded
-//         if o.Prescription.ID != uuid.Nil || o.PrescriptionID != "" {
-//             orderChan <- o
-//         }
-//     }
-//     close(orderChan)
-
-//     go func() {
-//         wg.Wait()
-//         close(resultChan)
-//     }()
-
-//     // 3. Collect results
-//     for o := range resultChan {
-//         if o.PharmacyID == pharmacyID {
-//             db.Model(&model.Order{}).Where("id = ?", o.ID).Update("status", "accepted")
-//             o.Status = "accepted"
-//         }
-//         fulfillableOrders = append(fulfillableOrders, o)
-//     }
-
-//     return c.JSON(model.Response{
-//         Success: true,
-//         Data:    fulfillableOrders,
-//     })
-// }
-
-// func checkInventoryForPrescription(pharmacyID string, itemsJSON datatypes.JSON) (bool, error) {
-//     var items []struct {
-//         Name     string `json:"name"`
-//         Quantity int    `json:"quantity"`
-//     }
-
-//     if err := json.Unmarshal(itemsJSON, &items); err != nil {
-//         return false, err
-//     }
-
-//     if len(items) == 0 { return false, nil }
-
-//     for _, item := range items {
-//         var count int64
-//         // Default quantity to 1 if it's not specified in the prescription JSON
-//         reqQty := item.Quantity
-//         if reqQty <= 0 { reqQty = 1 }
-
-//         // Using .Table("drugs") as per your previous logs
-//         err := database.DB.Table("drugs").
-//             Where("pharmacy_id = ? AND drug_name = ? AND quantity_in_stock >= ?",
-//                   pharmacyID, item.Name, reqQty).
-//             Count(&count).Error
-
-//         if err != nil || count == 0 {
-//             return false, nil
-//         }
-//     }
-//     return true, nil
-// }
-
 func GetAvailableGlobalOrders(c *fiber.Ctx) error {
-	pharmacyID, ok := c.Locals("pharmacy_id").(string)
-	if !ok {
-		return c.Status(401).JSON(model.Response{Success: false, Message: "Pharmacy session missing"})
-	}
-	db := database.DB
+    pharmacyID, ok := c.Locals("pharmacy_id").(string)
+    if !ok {
+        return c.Status(401).JSON(model.Response{Success: false, Message: "Pharmacy session missing"})
+    }
+    db := database.DB
 
-	var orders []model.Order
-	// 1. Batch fetch pending orders
-	if err := db.Where("status = ?", "pending").Find(&orders).Error; err != nil {
-		return c.Status(500).JSON(model.Response{Success: false, Message: "Database error"})
-	}
-
-	if len(orders) == 0 {
-		return c.JSON(model.Response{Success: true, Data: []model.Order{}})
-	}
-
-	// 2. Extract unique Prescription IDs
-	prescriptionIDs := []string{}
-	for _, o := range orders {
-		if o.PrescriptionID != "" {
-			prescriptionIDs = append(prescriptionIDs, o.PrescriptionID)
-		}
-	}
-
-	// 3. Batch fetch all Prescriptions to avoid N+1 query problem
-	var prescriptions []model.Prescription
-	db.Where("id IN ?", prescriptionIDs).Find(&prescriptions)
-
-	// Map Items for O(1) lookup
-	prescriptionMap := make(map[string]datatypes.JSON)
-    for _, p := range prescriptions {
-        // Normalize: remove dashes for consistent matching
-        idClean := strings.ReplaceAll(p.ID.String(), "-", "")
-        prescriptionMap[idClean] = p.Items
+    var orders []model.Order
+    // 1. Fetch orders and their related prescriptions in TWO queries (Batching)
+    // GORM does this efficiently behind the scenes
+    err := db.Preload("Prescription").Where("status = ?", "pending").Find(&orders).Error
+    if err != nil {
+        return c.Status(500).JSON(model.Response{Success: false, Message: "Database error"})
     }
 
-	// 4. Concurrency Setup (Worker Pool)
-	type checkTask struct {
-		Order model.Order
-		Items datatypes.JSON
-	}
-	taskChan := make(chan checkTask, len(orders))
-	resultChan := make(chan model.Order, len(orders))
-	var wg sync.WaitGroup
+    fulfillableOrders := make([]model.Order, 0) // Initialize to [] instead of null
 
-	// Start 5 Workers
-	for w := 0; w < 5; w++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for task := range taskChan {
-				// We call the inventory check for each order in parallel
-				hasStock, _ := checkInventoryForPrescription(pharmacyID, task.Items)
-				if hasStock {
-					resultChan <- task.Order
-				}
-			}
-		}()
-	}
+    // 2. Concurrency Setup
+    orderChan := make(chan model.Order, len(orders))
+    resultChan := make(chan model.Order, len(orders))
+    var wg sync.WaitGroup
 
-	// Send tasks to workers
-	for _, o := range orders {
-		orderPIDClean := strings.ReplaceAll(o.PrescriptionID, "-", "")
-		if items, found := prescriptionMap[orderPIDClean]; found {
-            taskChan <- checkTask{Order: o, Items: items}
+    // Start 5 Workers
+    for w := 0; w < 5; w++ {
+        wg.Add(1)
+        go func() {
+            defer wg.Done()
+            for order := range orderChan {
+                // Now we can access order.Prescription.Items directly!
+                hasStock, _ := checkInventoryForPrescription(pharmacyID, order.Prescription.Items)
+                if hasStock {
+                    resultChan <- order
+                }
+            }
+        }()
+    }
+
+    // Send orders to workers
+    for _, o := range orders {
+        // Only process if the prescription was actually loaded
+        if o.Prescription.ID != uuid.Nil || o.PrescriptionID != "" {
+            orderChan <- o
         }
-	}
-	close(taskChan)
+    }
+    close(orderChan)
 
-	// Close results channel once all workers are done
-	go func() {
-		wg.Wait()
-		close(resultChan)
-	}()
+    go func() {
+        wg.Wait()
+        close(resultChan)
+    }()
 
-	// 5. Collect results
-	fulfillableOrders := make([]model.Order, 0)
-	for o := range resultChan {
-		// Auto-accept logic: if the order was specifically for this pharmacy
-		if o.PharmacyID == pharmacyID {
-			db.Model(&model.Order{}).Where("id = ?", o.ID).Update("status", "accepted")
-			o.Status = "accepted"
-		}
-		fulfillableOrders = append(fulfillableOrders, o)
-	}
+    // 3. Collect results
+    for o := range resultChan {
+        if o.PharmacyID == pharmacyID {
+            db.Model(&model.Order{}).Where("id = ?", o.ID).Update("status", "accepted")
+            o.Status = "accepted"
+        }
+        fulfillableOrders = append(fulfillableOrders, o)
+    }
 
-	return c.JSON(model.Response{
-		Success: true,
-		Data:    fulfillableOrders,
-	})
+    return c.JSON(model.Response{
+        Success: true,
+        Data:    fulfillableOrders,
+    })
 }
-
-
 
 func checkInventoryForPrescription(pharmacyID string, itemsJSON datatypes.JSON) (bool, error) {
     var items []struct {
         Name     string `json:"name"`
-        Quantity int    `json:"quantity"` 
+        Quantity int    `json:"quantity"`
     }
 
     if err := json.Unmarshal(itemsJSON, &items); err != nil {
         return false, err
     }
 
-    for _, item := range items {
-        // If quantity is not in JSON, it defaults to 0. We should check for at least 1.
-        reqQty := item.Quantity
-        if reqQty <= 0 {
-            reqQty = 1 
-        }
+    if len(items) == 0 { return false, nil }
 
+    for _, item := range items {
         var count int64
-        // Note: Check if your table is 'inventories' or 'drugs' based on your logs
-        err := database.DB.Table("drugs"). // Use correct table name here
-            Where("pharmacy_id = ? AND drug_name = ? AND quantity_in_stock >= ?", 
+        // Default quantity to 1 if it's not specified in the prescription JSON
+        reqQty := item.Quantity
+        if reqQty <= 0 { reqQty = 1 }
+
+        // Using .Table("drugs") as per your previous logs
+        err := database.DB.Table("drugs").
+            Where("pharmacy_id = ? AND drug_name = ? AND quantity_in_stock >= ?",
                   pharmacyID, item.Name, reqQty).
             Count(&count).Error
 
         if err != nil || count == 0 {
-            return false, nil 
+            return false, nil
         }
     }
-    return  len(items) > 0,nil
+    return true, nil
 }
+
+// func GetAvailableGlobalOrders(c *fiber.Ctx) error {
+// 	pharmacyID, ok := c.Locals("pharmacy_id").(string)
+// 	if !ok {
+// 		return c.Status(401).JSON(model.Response{Success: false, Message: "Pharmacy session missing"})
+// 	}
+// 	db := database.DB
+
+// 	var orders []model.Order
+// 	// 1. Batch fetch pending orders
+// 	if err := db.Where("status = ?", "pending").Find(&orders).Error; err != nil {
+// 		return c.Status(500).JSON(model.Response{Success: false, Message: "Database error"})
+// 	}
+
+// 	if len(orders) == 0 {
+// 		return c.JSON(model.Response{Success: true, Data: []model.Order{}})
+// 	}
+
+// 	// 2. Extract unique Prescription IDs
+// 	prescriptionIDs := []string{}
+// 	for _, o := range orders {
+// 		if o.PrescriptionID != "" {
+// 			prescriptionIDs = append(prescriptionIDs, o.PrescriptionID)
+// 		}
+// 	}
+
+// 	// 3. Batch fetch all Prescriptions to avoid N+1 query problem
+// 	var prescriptions []model.Prescription
+// 	db.Where("id IN ?", prescriptionIDs).Find(&prescriptions)
+
+// 	// Map Items for O(1) lookup
+// 	prescriptionMap := make(map[string]datatypes.JSON)
+//     for _, p := range prescriptions {
+//         // Normalize: remove dashes for consistent matching
+//         idClean := strings.ReplaceAll(p.ID.String(), "-", "")
+//         prescriptionMap[idClean] = p.Items
+//     }
+
+// 	// 4. Concurrency Setup (Worker Pool)
+// 	type checkTask struct {
+// 		Order model.Order
+// 		Items datatypes.JSON
+// 	}
+// 	taskChan := make(chan checkTask, len(orders))
+// 	resultChan := make(chan model.Order, len(orders))
+// 	var wg sync.WaitGroup
+
+// 	// Start 5 Workers
+// 	for w := 0; w < 5; w++ {
+// 		wg.Add(1)
+// 		go func() {
+// 			defer wg.Done()
+// 			for task := range taskChan {
+// 				// We call the inventory check for each order in parallel
+// 				hasStock, _ := checkInventoryForPrescription(pharmacyID, task.Items)
+// 				if hasStock {
+// 					resultChan <- task.Order
+// 				}
+// 			}
+// 		}()
+// 	}
+
+// 	// Send tasks to workers
+// 	for _, o := range orders {
+// 		orderPIDClean := strings.ReplaceAll(o.PrescriptionID, "-", "")
+// 		if items, found := prescriptionMap[orderPIDClean]; found {
+//             taskChan <- checkTask{Order: o, Items: items}
+//         }
+// 	}
+// 	close(taskChan)
+
+// 	// Close results channel once all workers are done
+// 	go func() {
+// 		wg.Wait()
+// 		close(resultChan)
+// 	}()
+
+// 	// 5. Collect results
+// 	fulfillableOrders := make([]model.Order, 0)
+// 	for o := range resultChan {
+// 		// Auto-accept logic: if the order was specifically for this pharmacy
+// 		if o.PharmacyID == pharmacyID {
+// 			db.Model(&model.Order{}).Where("id = ?", o.ID).Update("status", "accepted")
+// 			o.Status = "accepted"
+// 		}
+// 		fulfillableOrders = append(fulfillableOrders, o)
+// 	}
+
+// 	return c.JSON(model.Response{
+// 		Success: true,
+// 		Data:    fulfillableOrders,
+// 	})
+// }
+
+
+
+// func checkInventoryForPrescription(pharmacyID string, itemsJSON datatypes.JSON) (bool, error) {
+//     var items []struct {
+//         Name     string `json:"name"`
+//         Quantity int    `json:"quantity"` 
+//     }
+
+//     if err := json.Unmarshal(itemsJSON, &items); err != nil {
+//         return false, err
+//     }
+
+//     for _, item := range items {
+//         // If quantity is not in JSON, it defaults to 0. We should check for at least 1.
+//         reqQty := item.Quantity
+//         if reqQty <= 0 {
+//             reqQty = 1 
+//         }
+
+//         var count int64
+//         // Note: Check if your table is 'inventories' or 'drugs' based on your logs
+//         err := database.DB.Table("drugs"). // Use correct table name here
+//             Where("pharmacy_id = ? AND drug_name = ? AND quantity_in_stock >= ?", 
+//                   pharmacyID, item.Name, reqQty).
+//             Count(&count).Error
+
+//         if err != nil || count == 0 {
+//             return false, nil 
+//         }
+//     }
+//     return  len(items) > 0,nil
+// }
 
 
 
