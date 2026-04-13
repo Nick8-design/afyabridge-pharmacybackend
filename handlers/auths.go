@@ -5,6 +5,7 @@ import (
 	"afyabridge-pharmacybackend/model"
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -83,6 +84,7 @@ func RegisterComplete(c *fiber.Ctx) error {
 		})
 	}
 
+
 	tx := database.DB.Begin()
 	defer func() {
 		if r := recover(); r != nil {
@@ -99,16 +101,28 @@ func RegisterComplete(c *fiber.Ctx) error {
 	licenseExpiry, _ := time.Parse("2006-01-02", c.FormValue("license_expiry"))
 	practicingExpiry, _ := time.Parse("2006-01-02", c.FormValue("practicing_expiry"))
 
+
+	latStr := c.FormValue("gps_lat")
+    lngStr := c.FormValue("gps_lng")
+	physicalAddr := c.FormValue("physical_address")
+    county := c.FormValue("county")
+	latFloat, _ := strconv.ParseFloat(latStr, 64)
+    lngFloat, _ := strconv.ParseFloat(lngStr, 64)
+
+
+
 	// 5. Create Pharmacy
 	pharmacy := model.Pharmacy{
 		ID:            pharmacyID,
 		Name:          c.FormValue("pharmacy_name_legal"),
 		Email:         businessEmail,
 		Phone:         c.FormValue("business_phone"),
-		AddressLine1:  c.FormValue("physical_address"),
-		County:        c.FormValue("county"),
+		AddressLine1:  physicalAddr, // Primary business address
+        County:        county,
 		LicenseNumber: c.FormValue("ppb_license_no"),
 		LicenseExpiry: licenseExpiry,
+		GpsLat:        &latFloat, // Pharmacy expects *float64
+        GpsLng:        &lngFloat,
 		IsActive:      true,
 	}
 
@@ -130,6 +144,9 @@ func RegisterComplete(c *fiber.Ctx) error {
 		IsActive:      true,
 		PhoneNumber:   ptrString(c.FormValue("pharmacist_phone")),
 		NationalID:    ptrString(c.FormValue("id_or_passport_no")),
+		GpsLat:        latStr, // User model expects string
+        GpsLng:        lngStr,
+		Address:       ptrString(physicalAddr),
 	}
 
 	if err := tx.Create(&user).Error; err != nil {
@@ -158,6 +175,10 @@ func RegisterComplete(c *fiber.Ctx) error {
 		PharmacistEmail:      pharmacistEmail,
 		MpesaMethod:          c.FormValue("mpesa_method", "TILL"),
 		IdDocument:           c.FormValue("id_document"),
+
+		GpsLat:               latFloat, // PharmacyRegistration expects float64
+        GpsLng:               lngFloat,
+		
 		PracticingLicenseDoc: c.FormValue("practicing_license_doc"),
 		OperatingLicenseDoc:  c.FormValue("operating_license_doc"),
 		BusinessRegCert:      c.FormValue("business_reg_cert"),

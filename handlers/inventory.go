@@ -4,7 +4,6 @@ import (
 	"afyabridge-pharmacybackend/database"
 	"afyabridge-pharmacybackend/model"
 	"time"
-
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
