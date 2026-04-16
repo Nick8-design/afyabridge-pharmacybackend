@@ -14,50 +14,126 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+
 func Login(c *fiber.Ctx) error {
-	fmt.Println("JWT_SECRET:", os.Getenv("JWT_SECRET"))
-	type LoginInput struct {
-		Email    string `json:"email" validate:"required,email"`
-		Password string `json:"password" validate:"required"`
-	}
+    type LoginInput struct {
+        Email    string `json:"email" validate:"required,email"`
+        Password string `json:"password" validate:"required"`
+    }
 
-	var input LoginInput
-	if err := c.BodyParser(&input); err != nil {
-		return c.Status(400).JSON(model.Response{Success: false, Message: "Bad request"})
-	}
+    var input LoginInput
+    if err := c.BodyParser(&input); err != nil {
+        return c.Status(400).JSON(model.Response{
+            Success: false, 
+            Message: "Bad request",
+        })
+    }
 
-	var user model.User
-	if err := database.DB.Where("email = ?", input.Email).First(&user).Error; err != nil {
-		return c.Status(401).JSON(model.Response{Success: false, Message: "Invalid email or password"})
-	}
+    var user model.User
+    if err := database.DB.Where("email = ?", input.Email).First(&user).Error; err != nil {
+        return c.Status(401).JSON(model.Response{
+            Success: false, 
+            Message: "Invalid email or password",
+        })
+    }
 
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(input.Password)); err != nil {
-		return c.Status(401).JSON(model.Response{Success: false, Message: "Invalid email or password"})
-	}
+    // 1. Password Verification
+    if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(input.Password)); err != nil {
+        return c.Status(401).JSON(model.Response{
+            Success: false, 
+            Message: "Invalid email or password",
+        })
+    }
 
-	// Generate JWT
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-	"user_id": user.ID,
-    "role":    user.Role,
-    "exp":     time.Now().Add(time.Hour * 24 * 90).Unix(), // Set to 90 days
-    "iat":     time.Now().Unix(),
-	})
+    // 2. Role-Based Verification Check (Doctors & Pharmacists)
+    if user.Role == "doctor" || user.Role == "pharmacist" {
+        if user.VerificationStatus == nil || *user.VerificationStatus != "verified" {
+            return c.Status(403).JSON(model.Response{
+                Success: false,
+                Message: "Your account is pending verification. Please wait for admin approval.",
+            })
+        }
+    }
 
-	t, err := token.SignedString([]byte(os.Getenv("JWT_SECRET")))
-	if err != nil {
-		return c.Status(500).JSON(model.Response{Success: false, Message: "Token generation failed"})
-	}
+    // 3. General Account Status Check
+    if user.AccountStatus != "active" {
+        return c.Status(403).JSON(model.Response{
+            Success: false,
+            Message: "This account has been " + user.AccountStatus,
+        })
+    }
 
-	return c.Status(200).JSON(model.Response{
-		Success: true,
-		Message: "Login successful",
-		Data: fiber.Map{
-			"access_token":  t,
-			"refresh_token": "ref-" + t[:10], // Placeholder refresh logic
-			"user":          user,
-		},
-	})
+    // 4. Generate JWT (Only reached if checks pass)
+    token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+        "user_id": user.ID,
+        "role":    user.Role,
+        "exp":     time.Now().Add(time.Hour * 24 * 90).Unix(), // 90 days
+        "iat":     time.Now().Unix(),
+    })
+
+    t, err := token.SignedString([]byte(os.Getenv("JWT_SECRET")))
+    if err != nil {
+        return c.Status(500).JSON(model.Response{
+            Success: false, 
+            Message: "Token generation failed",
+        })
+    }
+
+    return c.Status(200).JSON(model.Response{
+        Success: true,
+        Message: "Login successful",
+        Data: fiber.Map{
+            "access_token":  t,
+            "refresh_token": "ref-" + t[:10],
+            "user":          user,
+        },
+    })
 }
+
+// func Login(c *fiber.Ctx) error {
+// 	fmt.Println("JWT_SECRET:", os.Getenv("JWT_SECRET"))
+// 	type LoginInput struct {
+// 		Email    string `json:"email" validate:"required,email"`
+// 		Password string `json:"password" validate:"required"`
+// 	}
+
+// 	var input LoginInput
+// 	if err := c.BodyParser(&input); err != nil {
+// 		return c.Status(400).JSON(model.Response{Success: false, Message: "Bad request"})
+// 	}
+
+// 	var user model.User
+// 	if err := database.DB.Where("email = ?", input.Email).First(&user).Error; err != nil {
+// 		return c.Status(401).JSON(model.Response{Success: false, Message: "Invalid email or password"})
+// 	}
+
+// 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(input.Password)); err != nil {
+// 		return c.Status(401).JSON(model.Response{Success: false, Message: "Invalid email or password"})
+// 	}
+
+// 	// Generate JWT
+// 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+// 	"user_id": user.ID,
+//     "role":    user.Role,
+//     "exp":     time.Now().Add(time.Hour * 24 * 90).Unix(), // Set to 90 days
+//     "iat":     time.Now().Unix(),
+// 	})
+
+// 	t, err := token.SignedString([]byte(os.Getenv("JWT_SECRET")))
+// 	if err != nil {
+// 		return c.Status(500).JSON(model.Response{Success: false, Message: "Token generation failed"})
+// 	}
+
+// 	return c.Status(200).JSON(model.Response{
+// 		Success: true,
+// 		Message: "Login successful",
+// 		Data: fiber.Map{
+// 			"access_token":  t,
+// 			"refresh_token": "ref-" + t[:10], // Placeholder refresh logic
+// 			"user":          user,
+// 		},
+// 	})
+// }
 
 func RegisterComplete(c *fiber.Ctx) error {
 	fmt.Printf("Someone is registering\n")
