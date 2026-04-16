@@ -536,6 +536,9 @@ PickupContact:  pharmacy.Phone,
 
 				// Dropoff Details (From Order/Patient)
 				DropoffLocation: order.PatientAddress,
+
+				DropoffLat : safeFloat64(&order.PatientLat)     ,
+	            DropoffLng :safeFloat64(&order.PatientLng),
 				ReceiverContact:  order.PatientPhone,
 				// DropoffLat/Lng should come from your patient's saved geocoding if available
 				

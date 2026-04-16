@@ -24,6 +24,8 @@ type Order struct {
 	DeliveryType   string          `gorm:"type:enum('pickup','home_delivery');default:'pickup'" json:"delivery_type"`
 	Priority       string          `gorm:"type:enum('urgent','normal');default:'normal'" json:"priority"`
 	Status         string          `gorm:"type:enum('pending','accepted','processing','ready','dispatched','delivered','cancelled');default:'pending'" json:"status"`
+		PatientLat     float64         `gorm:"type:decimal(10,8)" json:"patient_lat"` // 👈 Add this
+    PatientLng     float64         `gorm:"type:decimal(11,8)" json:"patient_lng"`
 	
 	// Financial Data
 	TotalAmount    decimal.Decimal `gorm:"type:decimal(10,2);not null;default:0" json:"total_amount"`

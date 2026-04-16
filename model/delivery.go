@@ -2,10 +2,7 @@ package model
 
 import "time"
 
-/*
-i want all pharmarcies to receive all orders no matter the id based on status pending  , but to receive only if they have the medicen drug items in the prescriptions in their inventory , by default to check first if the pharmacy that was sent to has the medicine all the medicine in his inventory if yes then automatically mark the status accepted ,but id not let it remain pending ,  and when the other pharmacy which has the drugs in prescription receives it and let him mark accepted manually so that the other dont see it , and when serving (making delivery item to go to delivery table) it let same amount of drugs be removed from his inventory and be placed in the patients inventory and fill the needed details including the capacity included in the prescription,and as this  make this delivery item is being added to the deliveries table you can assign it to specific rider who is not on duty or lets just live  it unssigned so that any rider can see it
 
-*/
 
 type Delivery struct {
 	ID                    string     `gorm:"type:char(36);primaryKey" json:"id"`
