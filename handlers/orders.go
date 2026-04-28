@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"strings"
+
 	// "strings"
 
 	"sync"
@@ -488,6 +490,7 @@ func safeFloat64(val *float64) float64 {
 func ServeOrder(c *fiber.Ctx) error {
     orderID := c.Params("order_id")
     pharmacyID := c.Locals("pharmacy_id").(string)
+	pharmacistUserID := c.Locals("user_id").(string)
     db := database.DB
 
     var order model.Order
@@ -511,19 +514,39 @@ func ServeOrder(c *fiber.Ctx) error {
     err := db.Transaction(func(tx *gorm.DB) error {
         
         for _, item := range items {
-            // --- 1. CALCULATE QUANTITY TO DEDUCT ---
-            qtyToDeduct := item.Quantity
-            durationDays := 0
+            // // --- 1. CALCULATE QUANTITY TO DEDUCT ---
+            // qtyToDeduct := item.Quantity
+            // durationDays := 0
             
-            // Fallback: If quantity is 0, parse the duration (e.g., "7 days")
+            // // Fallback: If quantity is 0, parse the duration (e.g., "7 days")
+            // if qtyToDeduct <= 0 && item.Duration != "" {
+            //     fmt.Sscanf(item.Duration, "%d", &durationDays)
+            //     if durationDays > 0 {
+            //         // Logic: duration * frequency (defaulting frequency to 1 if not calculable)
+            //         qtyToDeduct = durationDays * 1 
+            //     }
+            // }
+            
+			qtyToDeduct := item.Quantity
+            durationDays := 0
+            timesPerDay := 1 // Default
+
+            // Logic to determine times_per_day from frequency string
+            freqLower := strings.ToLower(item.Frequency)
+            if strings.Contains(freqLower, "twice") || strings.Contains(freqLower, "bd") {
+                timesPerDay = 2
+            } else if strings.Contains(freqLower, "thrice") || strings.Contains(freqLower, "tds") {
+                timesPerDay = 3
+            } else if strings.Contains(freqLower, "four") || strings.Contains(freqLower, "qid") {
+                timesPerDay = 4
+            }
+
             if qtyToDeduct <= 0 && item.Duration != "" {
                 fmt.Sscanf(item.Duration, "%d", &durationDays)
                 if durationDays > 0 {
-                    // Logic: duration * frequency (defaulting frequency to 1 if not calculable)
-                    qtyToDeduct = durationDays * 1 
+                    qtyToDeduct = durationDays * timesPerDay
                 }
             }
-            
             // Final fallback
             if qtyToDeduct <= 0 { qtyToDeduct = 1 }
 
@@ -547,27 +570,57 @@ func ServeOrder(c *fiber.Ctx) error {
             // --- 3. ADD TO PATIENT MEDICATIONS ---
             prescriptionIDStr := prescription.ID.String()
             now := time.Now()
+			doctorIDStr := prescription.DoctorID.String() // PrescribedBy
+            drugIDStr := drug.ID // DrugID from inventory
             
             // Map Inventory unit to Medication DosageForm enum
             dosageForm := "tablet" // default
             if drug.Unit != "" { dosageForm = drug.Unit }
 
+			var instructions string
+			if prescription.Notes != nil {
+				instructions = *prescription.Notes
+			} else {
+				instructions = ""
+			}
             newMed := model.Medication{
-                ID:                uuid.New().String(),
+				ID:                uuid.New().String(),
                 PatientID:         order.PatientID,
                 PrescriptionID:    &prescriptionIDStr,
                 PharmacyID:        &pharmacyID,
+                PrescribedBy:      &doctorIDStr,      // From Prescription
+                DispensedBy:       &pharmacistUserID, // Current User
+                DrugID:            &drugIDStr,        // From Inventory
                 DrugName:          item.DrugName,
                 Dosage:            item.Dosage,
-                DosageForm:        dosageForm,
+				DosageForm:        dosageForm,
+                // DosageForm:        drug.Unit,         // tablet, syrup, etc.
                 Frequency:         item.Frequency,
+                TimesPerDay:       timesPerDay,
+                Instructions:     instructions,
                 DurationDays:      durationDays,
                 QuantityDispensed: qtyToDeduct,
-                QuantityRemaining: qtyToDeduct, // Initial state
+                QuantityRemaining: qtyToDeduct,
                 Status:            "active",
                 StartDate:         now,
+                DispensedAt:       &now,              // Current Time
                 CreatedAt:         now,
                 UpdatedAt:         now,
+                // ID:                uuid.New().String(),
+                // PatientID:         order.PatientID,
+                // PrescriptionID:    &prescriptionIDStr,
+                // PharmacyID:        &pharmacyID,
+                // DrugName:          item.DrugName,
+                // Dosage:            item.Dosage,
+                // DosageForm:        dosageForm,
+                // Frequency:         item.Frequency,
+                // DurationDays:      durationDays,
+                // QuantityDispensed: qtyToDeduct,
+                // QuantityRemaining: qtyToDeduct, // Initial state
+                // Status:            "active",
+                // StartDate:         now,
+                // CreatedAt:         now,
+                // UpdatedAt:         now,
             }
             
             if err := tx.Create(&newMed).Error; err != nil {
