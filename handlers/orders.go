@@ -486,123 +486,266 @@ func safeFloat64(val *float64) float64 {
 }
 
 func ServeOrder(c *fiber.Ctx) error {
-	orderID := c.Params("order_id")
-	pharmacyID := c.Locals("pharmacy_id").(string)
-	db := database.DB
+    orderID := c.Params("order_id")
+    pharmacyID := c.Locals("pharmacy_id").(string)
+    db := database.DB
 
-	// 1. Fetch Order with Patient context
-	var order model.Order
-	if err := db.First(&order, "id = ?", orderID).Error; err != nil {
-		return c.Status(404).JSON(model.Response{Success: false, Message: "Order not found"})
-	}
+    var order model.Order
+    if err := db.First(&order, "id = ?", orderID).Error; err != nil {
+        return c.Status(404).JSON(model.Response{Success: false, Message: "Order not found"})
+    }
 
-	// 2. Fetch Prescription
-	var prescription model.Prescription
-	if err := db.First(&prescription, "id = ?", order.PrescriptionID).Error; err != nil {
-		return c.Status(404).JSON(model.Response{Success: false, Message: "Prescription not found"})
-	}
+    var prescription model.Prescription
+    if err := db.First(&prescription, "id = ?", order.PrescriptionID).Error; err != nil {
+        return c.Status(404).JSON(model.Response{Success: false, Message: "Prescription not found"})
+    }
 
-	// 3. Fetch Pharmacy details (for Pickup Info)
-	// var pharmacy model.Pharmacy // Assuming you have a Pharmacy model
-	// db.First(&pharmacy, "id = ?", pharmacyID)
+    var pharmacy model.Pharmacy
+    if err := db.First(&pharmacy, "id = ?", pharmacyID).Error; err != nil {
+        return c.Status(404).JSON(model.Response{Success: false, Message: "Pharmacy profile not found"})
+    }
 
-	// 3. Fetch Pharmacy details
-var pharmacy model.Pharmacy
-if err := db.First(&pharmacy, "id = ?", pharmacyID).Error; err != nil {
-    return c.Status(404).JSON(model.Response{
-        Success: false, 
-        Message: "Pharmacy profile incomplete or not found",
+    var items []DrugItem
+    json.Unmarshal(prescription.Items, &items)
+
+    err := db.Transaction(func(tx *gorm.DB) error {
+        
+        for _, item := range items {
+            // --- 1. CALCULATE QUANTITY TO DEDUCT ---
+            qtyToDeduct := item.Quantity
+            durationDays := 0
+            
+            // Fallback: If quantity is 0, parse the duration (e.g., "7 days")
+            if qtyToDeduct <= 0 && item.Duration != "" {
+                fmt.Sscanf(item.Duration, "%d", &durationDays)
+                if durationDays > 0 {
+                    // Logic: duration * frequency (defaulting frequency to 1 if not calculable)
+                    qtyToDeduct = durationDays * 1 
+                }
+            }
+            
+            // Final fallback
+            if qtyToDeduct <= 0 { qtyToDeduct = 1 }
+
+            // --- 2. SUBTRACT FROM PHARMACY INVENTORY ---
+            var drug model.Inventory
+            // Note: Using ILIKE or LOWER for flexible matching as discussed
+            if err := tx.Table("drugs").Where("pharmacy_id = ? AND LOWER(drug_name) = LOWER(?)", 
+                pharmacyID, item.DrugName).First(&drug).Error; err != nil {
+                return fmt.Errorf("drug %s not found in your inventory", item.DrugName)
+            }
+
+            if drug.QuantityInStock < qtyToDeduct {
+                return fmt.Errorf("insufficient stock for %s", item.DrugName)
+            }
+
+            if err := tx.Table("drugs").Where("id = ?", drug.ID).
+                Update("quantity_in_stock", gorm.Expr("quantity_in_stock - ?", qtyToDeduct)).Error; err != nil {
+                return err
+            }
+
+            // --- 3. ADD TO PATIENT MEDICATIONS ---
+            prescriptionIDStr := prescription.ID.String()
+            now := time.Now()
+            
+            // Map Inventory unit to Medication DosageForm enum
+            dosageForm := "tablet" // default
+            if drug.Unit != "" { dosageForm = drug.Unit }
+
+            newMed := model.Medication{
+                ID:                uuid.New().String(),
+                PatientID:         order.PatientID,
+                PrescriptionID:    &prescriptionIDStr,
+                PharmacyID:        &pharmacyID,
+                DrugName:          item.DrugName,
+                Dosage:            item.Dosage,
+                DosageForm:        dosageForm,
+                Frequency:         item.Frequency,
+                DurationDays:      durationDays,
+                QuantityDispensed: qtyToDeduct,
+                QuantityRemaining: qtyToDeduct, // Initial state
+                Status:            "active",
+                StartDate:         now,
+                CreatedAt:         now,
+                UpdatedAt:         now,
+            }
+            
+            if err := tx.Create(&newMed).Error; err != nil {
+                return fmt.Errorf("failed to add patient medication: %v", err)
+            }
+        }
+
+        // --- 4. CREATE DELIVERY RECORD ---
+        var delivery model.Delivery
+        deliveryErr := tx.Where("order_id = ?", order.ID).First(&delivery).Error
+
+        if deliveryErr != nil && errors.Is(deliveryErr, gorm.ErrRecordNotFound) {
+            otp := fmt.Sprintf("%06d", rand.Intn(1000000))
+            newDelivery := model.Delivery{
+                ID:                    uuid.New().String(),
+                PackageNumber:         "PKG-" + time.Now().Format("20060102") + "-" + uuid.New().String()[:5],
+                OrderID:               order.ID,
+                Status:                "pending",
+                PickupLocation:        pharmacy.AddressLine1,
+                PickupLat:             safeFloat64(pharmacy.GpsLat),
+                PickupLng:             safeFloat64(pharmacy.GpsLng),
+                PickupContact:         pharmacy.Phone,
+                DropoffLocation:       order.PatientAddress,
+                DropoffLat:            safeFloat64(&order.PatientLat),
+                DropoffLng:            safeFloat64(&order.PatientLng),
+                ReceiverContact:       order.PatientPhone,
+                OtpCode:               otp,
+                PackageSealed:         true,
+                CreatedAt:             time.Now(),
+                UpdatedAt:             time.Now(),
+            }
+            if err := tx.Create(&newDelivery).Error; err != nil {
+                return err
+            }
+        }
+
+        // --- 5. UPDATE ORDER STATUS ---
+        return tx.Model(&order).Updates(map[string]interface{}{
+            "status":      "ready",
+            "pharmacy_id": pharmacyID,
+        }).Error
+    })
+
+    if err != nil {
+        return c.Status(400).JSON(model.Response{Success: false, Message: err.Error()})
+    }
+
+    return c.JSON(model.Response{
+        Success: true, 
+        Message: "Order served: Inventory deducted, Patient meds updated, and Delivery initiated.",
     })
 }
 
-	var items []DrugItem
-	json.Unmarshal(prescription.Items, &items)
 
-	err := db.Transaction(func(tx *gorm.DB) error {
-		// --- [Inventory & Medication Logic from previous steps goes here] ---
-		// (Assume inventory is deducted and patient_medications created)
 
-		// 4. Create or Update Comprehensive Delivery Record
-		var delivery model.Delivery
-		err := tx.Where("order_id = ?", order.ID).First(&delivery).Error
 
-		if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
-			now := time.Now()
+// func ServeOrder(c *fiber.Ctx) error {
+// 	orderID := c.Params("order_id")
+// 	pharmacyID := c.Locals("pharmacy_id").(string)
+// 	db := database.DB
+
+// 	// 1. Fetch Order with Patient context
+// 	var order model.Order
+// 	if err := db.First(&order, "id = ?", orderID).Error; err != nil {
+// 		return c.Status(404).JSON(model.Response{Success: false, Message: "Order not found"})
+// 	}
+
+// 	// 2. Fetch Prescription
+// 	var prescription model.Prescription
+// 	if err := db.First(&prescription, "id = ?", order.PrescriptionID).Error; err != nil {
+// 		return c.Status(404).JSON(model.Response{Success: false, Message: "Prescription not found"})
+// 	}
+
+// 	// 3. Fetch Pharmacy details (for Pickup Info)
+// 	// var pharmacy model.Pharmacy // Assuming you have a Pharmacy model
+// 	// db.First(&pharmacy, "id = ?", pharmacyID)
+
+// 	// 3. Fetch Pharmacy details
+// var pharmacy model.Pharmacy
+// if err := db.First(&pharmacy, "id = ?", pharmacyID).Error; err != nil {
+//     return c.Status(404).JSON(model.Response{
+//         Success: false, 
+//         Message: "Pharmacy profile incomplete or not found",
+//     })
+// }
+
+// 	var items []DrugItem
+// 	json.Unmarshal(prescription.Items, &items)
+
+// 	err := db.Transaction(func(tx *gorm.DB) error {
+// 		// --- [Inventory & Medication Logic from previous steps goes here] ---
+// 		// (Assume inventory is deducted and patient_medications created)
+
+// 		// 4. Create or Update Comprehensive Delivery Record
+// 		var delivery model.Delivery
+// 		err := tx.Where("order_id = ?", order.ID).First(&delivery).Error
+
+// 		if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
+// 			now := time.Now()
 			
-			// Generate 6-digit OTP
-			otp := fmt.Sprintf("%06d", rand.Intn(1000000))
+// 			// Generate 6-digit OTP
+// 			otp := fmt.Sprintf("%06d", rand.Intn(1000000))
 
-			newDelivery := model.Delivery{
-				ID:            uuid.New().String(),
-				PackageNumber: "PKG-" + now.Format("20060102") + "-" + uuid.New().String()[:5],
-				OrderID:       order.ID,
-				RiderID:       nil, // Unassigned
-				Status:        "pending",
-				AcceptStatus:  false,
+// 			newDelivery := model.Delivery{
+// 				ID:            uuid.New().String(),
+// 				PackageNumber: "PKG-" + now.Format("20060102") + "-" + uuid.New().String()[:5],
+// 				OrderID:       order.ID,
+// 				RiderID:       nil, // Unassigned
+// 				Status:        "pending",
+// 				AcceptStatus:  false,
 
-				// Pickup Details (From Pharmacy)
-				PickupLocation: pharmacy.AddressLine1,
-PickupLat:      safeFloat64(pharmacy.GpsLat), // Use a helper to avoid panic
-PickupLng:      safeFloat64(pharmacy.GpsLng), // Use a helper to avoid panic
-PickupContact:  pharmacy.Phone,
+// 				// Pickup Details (From Pharmacy)
+// 				PickupLocation: pharmacy.AddressLine1,
+// PickupLat:      safeFloat64(pharmacy.GpsLat), // Use a helper to avoid panic
+// PickupLng:      safeFloat64(pharmacy.GpsLng), // Use a helper to avoid panic
+// PickupContact:  pharmacy.Phone,
 
-				// Dropoff Details (From Order/Patient)
-				DropoffLocation: order.PatientAddress,
+// 				// Dropoff Details (From Order/Patient)
+// 				DropoffLocation: order.PatientAddress,
 
-				DropoffLat : safeFloat64(&order.PatientLat)     ,
-	            DropoffLng :safeFloat64(&order.PatientLng),
-				ReceiverContact:  order.PatientPhone,
-				// DropoffLat/Lng should come from your patient's saved geocoding if available
+// 				DropoffLat : safeFloat64(&order.PatientLat)     ,
+// 	            DropoffLng :safeFloat64(&order.PatientLng),
+// 				ReceiverContact:  order.PatientPhone,
+// 				// DropoffLat/Lng should come from your patient's saved geocoding if available
 				
-				// Requirements & Logistics
-				Requirement:           "Handle with care - Temperature sensitive",
-				EstimatedDeliveryTime: "30-60 mins",
-				Distance:              0.0, // Should be calculated via Maps API
-				Charges:               150.00, // Fixed or calculated
-				DeliveryZone:          "Nairobi Central",
-				DeliveryNotes:         "Contact patient upon arrival",
+// 				// Requirements & Logistics
+// 				Requirement:           "Handle with care - Temperature sensitive",
+// 				EstimatedDeliveryTime: "30-60 mins",
+// 				Distance:              0.0, // Should be calculated via Maps API
+// 				Charges:               150.00, // Fixed or calculated
+// 				DeliveryZone:          "Nairobi Central",
+// 				DeliveryNotes:         "Contact patient upon arrival",
 				
-				// Security
-				OtpCode:               otp,
+// 				// Security
+// 				OtpCode:               otp,
 				
-				// Verification Flags
-				PackageSealed:        true,
-				LabeledCorrectly:     true,
-				VerifiedWithPharmacy: true,
+// 				// Verification Flags
+// 				PackageSealed:        true,
+// 				LabeledCorrectly:     true,
+// 				VerifiedWithPharmacy: true,
 
-				// Timestamps
-				DateApproved: &now,
-				CreatedAt:    now,
-				UpdatedAt:    now,
-			}
+// 				// Timestamps
+// 				DateApproved: &now,
+// 				CreatedAt:    now,
+// 				UpdatedAt:    now,
+// 			}
 
-			if err := tx.Create(&newDelivery).Error; err != nil {
-				return err
-			}
-		} else if err == nil {
-			// Update existing record to 'pending' if it was failed/cancelled before
-			tx.Model(&delivery).Updates(map[string]interface{}{
-				"status":     "pending",
-				"updated_at": time.Now(),
-			})
-		}
+// 			if err := tx.Create(&newDelivery).Error; err != nil {
+// 				return err
+// 			}
+// 		} else if err == nil {
+// 			// Update existing record to 'pending' if it was failed/cancelled before
+// 			tx.Model(&delivery).Updates(map[string]interface{}{
+// 				"status":     "pending",
+// 				"updated_at": time.Now(),
+// 			})
+// 		}
 
-		// 5. Update Order Status
-		return tx.Model(&order).Updates(map[string]interface{}{
-			"status":      "ready",
-			"pharmacy_id": pharmacyID,
-		}).Error
-	})
+// 		// 5. Update Order Status
+// 		return tx.Model(&order).Updates(map[string]interface{}{
+// 			"status":      "ready",
+// 			"pharmacy_id": pharmacyID,
+// 		}).Error
+// 	})
 
-	if err != nil {
-		return c.Status(400).JSON(model.Response{Success: false, Message: err.Error()})
-	}
+// 	if err != nil {
+// 		return c.Status(400).JSON(model.Response{Success: false, Message: err.Error()})
+// 	}
 
-	return c.JSON(model.Response{
-		Success: true, 
-		Message: "Order served and delivery record initiated",
-	})
-}
+// 	return c.JSON(model.Response{
+// 		Success: true, 
+// 		Message: "Order served and delivery record initiated",
+// 	})
+// }
+
+
+
+
 
 // POST /orders/:order_id/serve
 // func ServeOrder(c *fiber.Ctx) error {
