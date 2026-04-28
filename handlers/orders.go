@@ -33,7 +33,7 @@ func GetAvailableGlobalOrders(c *fiber.Ctx) error {
     // GORM does this efficiently behind the scenes
     // err := db.Preload("Prescription").Where("status = ?", "pending").Find(&orders).Error
 	err := db.Preload("Prescription").
-    Where("status = ? OR status = ?", "draft", "pending").
+    Where("status = ? OR status = ?", "draft", "pending").Order("created_at DESC").
     Find(&orders).Error
     if err != nil {
         return c.Status(500).JSON(model.Response{Success: false, Message: "Database error"})
