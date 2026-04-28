@@ -29,21 +29,29 @@ func GetAvailableGlobalOrders(c *fiber.Ctx) error {
     db := database.DB
 
     var orders []model.Order
-    
-    // 1. Modified Query: 
-    // Fetch (draft OR pending) 
-    // OR (accepted AND belongs to THIS pharmacy)
-    err := db.Preload("Prescription").
-        Where("(status = ? OR status = ?) OR (status = ? AND pharmacy_id = ?)", 
+    // 1. Fetch orders and their related prescriptions in TWO queries (Batching)
+    // GORM does this efficiently behind the scenes
+    // err := db.Preload("Prescription").Where("status = ?", "pending").Find(&orders).Error
+
+	/*
+    Where("(status = ? OR status = ?) OR (status = ? AND pharmacy_id = ?)", 
             "draft", "pending", "accepted", pharmacyID).
         Order("created_at DESC").
         Find(&orders).Error
+	*/
+	err := db.Preload("Prescription").
+    // Where("status = ? OR status = ?", "draft", "pending").Order("created_at DESC").
+    // Find(&orders).Error
+	Where("(status = ? OR status = ?) OR (status = ? AND pharmacy_id = ?)", 
+	"draft", "pending", "accepted", pharmacyID).
+Order("created_at DESC").
+Find(&orders).Error
 
     if err != nil {
         return c.Status(500).JSON(model.Response{Success: false, Message: "Database error"})
     }
 
-    fulfillableOrders := make([]model.Order, 0)
+    fulfillableOrders := make([]model.Order, 0) // Initialize to [] instead of null
 
     // 2. Concurrency Setup
     orderChan := make(chan model.Order, len(orders))
@@ -56,13 +64,7 @@ func GetAvailableGlobalOrders(c *fiber.Ctx) error {
         go func() {
             defer wg.Done()
             for order := range orderChan {
-                // If it's already accepted by us, we don't need to re-check inventory 
-                // but we include it in results to show on the UI.
-                if order.Status == "accepted" && order.PharmacyID == pharmacyID {
-                    resultChan <- order
-                    continue
-                }
-
+                // Now we can access order.Prescription.Items directly!
                 hasStock, _ := checkInventoryForPrescription(pharmacyID, order.Prescription.Items)
                 if hasStock {
                     resultChan <- order
@@ -73,6 +75,7 @@ func GetAvailableGlobalOrders(c *fiber.Ctx) error {
 
     // Send orders to workers
     for _, o := range orders {
+        // Only process if the prescription was actually loaded
         if o.Prescription.ID != uuid.Nil || o.PrescriptionID != "" {
             orderChan <- o
         }
@@ -86,15 +89,9 @@ func GetAvailableGlobalOrders(c *fiber.Ctx) error {
 
     // 3. Collect results
     for o := range resultChan {
-        // If it's a fresh order (not yet accepted), mark it as accepted now
-        if o.Status != "accepted" {
-             // In your snippet you had o.PharmacyID == pharmacyID check here,
-             // Ensure the update assigns the pharmacyID to the order
-             db.Model(&model.Order{}).Where("id = ?", o.ID).Updates(map[string]interface{}{
-                 "status": "accepted",
-                 "pharmacy_id": pharmacyID,
-             })
-             o.Status = "accepted" // Keep it as 'accepted' for the UI
+        if o.PharmacyID == pharmacyID {
+            db.Model(&model.Order{}).Where("id = ?", o.ID).Update("status", "accepted")
+            o.Status = "pending"
         }
         fulfillableOrders = append(fulfillableOrders, o)
     }
@@ -104,75 +101,6 @@ func GetAvailableGlobalOrders(c *fiber.Ctx) error {
         Data:    fulfillableOrders,
     })
 }
-
-// func GetAvailableGlobalOrders(c *fiber.Ctx) error {
-//     pharmacyID, ok := c.Locals("pharmacy_id").(string)
-//     if !ok {
-//         return c.Status(401).JSON(model.Response{Success: false, Message: "Pharmacy session missing"})
-//     }
-//     db := database.DB
-
-//     var orders []model.Order
-//     // 1. Fetch orders and their related prescriptions in TWO queries (Batching)
-//     // GORM does this efficiently behind the scenes
-//     // err := db.Preload("Prescription").Where("status = ?", "pending").Find(&orders).Error
-// 	err := db.Preload("Prescription").
-//     Where("status = ? OR status = ?", "draft", "pending").Order("created_at DESC").
-//     Find(&orders).Error
-//     if err != nil {
-//         return c.Status(500).JSON(model.Response{Success: false, Message: "Database error"})
-//     }
-
-//     fulfillableOrders := make([]model.Order, 0) // Initialize to [] instead of null
-
-//     // 2. Concurrency Setup
-//     orderChan := make(chan model.Order, len(orders))
-//     resultChan := make(chan model.Order, len(orders))
-//     var wg sync.WaitGroup
-
-//     // Start 5 Workers
-//     for w := 0; w < 5; w++ {
-//         wg.Add(1)
-//         go func() {
-//             defer wg.Done()
-//             for order := range orderChan {
-//                 // Now we can access order.Prescription.Items directly!
-//                 hasStock, _ := checkInventoryForPrescription(pharmacyID, order.Prescription.Items)
-//                 if hasStock {
-//                     resultChan <- order
-//                 }
-//             }
-//         }()
-//     }
-
-//     // Send orders to workers
-//     for _, o := range orders {
-//         // Only process if the prescription was actually loaded
-//         if o.Prescription.ID != uuid.Nil || o.PrescriptionID != "" {
-//             orderChan <- o
-//         }
-//     }
-//     close(orderChan)
-
-//     go func() {
-//         wg.Wait()
-//         close(resultChan)
-//     }()
-
-//     // 3. Collect results
-//     for o := range resultChan {
-//         if o.PharmacyID == pharmacyID {
-//             db.Model(&model.Order{}).Where("id = ?", o.ID).Update("status", "accepted")
-//             o.Status = "pending"
-//         }
-//         fulfillableOrders = append(fulfillableOrders, o)
-//     }
-
-//     return c.JSON(model.Response{
-//         Success: true,
-//         Data:    fulfillableOrders,
-//     })
-// }
 
 func checkInventoryForPrescription(pharmacyID string, itemsJSON datatypes.JSON) (bool, error) {
     var items []struct {
