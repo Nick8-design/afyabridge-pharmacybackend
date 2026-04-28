@@ -30,15 +30,12 @@ func GetAvailableGlobalOrders(c *fiber.Ctx) error {
 
     var orders []model.Order
     
-    // Updated Query: 
+    // 1. Modified Query: 
     // Fetch (draft OR pending) 
-    // OR (accepted AND belonging to THIS pharmacy)
+    // OR (accepted AND belongs to THIS pharmacy)
     err := db.Preload("Prescription").
-        Where("(status IN ?) OR (status = ? AND pharmacy_id = ?)", 
-            []string{"draft", "pending"}, 
-            "accepted", 
-            pharmacyID,
-        ).
+        Where("(status = ? OR status = ?) OR (status = ? AND pharmacy_id = ?)", 
+            "draft", "pending", "accepted", pharmacyID).
         Order("created_at DESC").
         Find(&orders).Error
 
@@ -48,18 +45,19 @@ func GetAvailableGlobalOrders(c *fiber.Ctx) error {
 
     fulfillableOrders := make([]model.Order, 0)
 
-    // 2. Concurrency Setup (unchanged)
+    // 2. Concurrency Setup
     orderChan := make(chan model.Order, len(orders))
     resultChan := make(chan model.Order, len(orders))
     var wg sync.WaitGroup
 
+    // Start 5 Workers
     for w := 0; w < 5; w++ {
         wg.Add(1)
         go func() {
             defer wg.Done()
             for order := range orderChan {
-                // If it's already accepted by us, we don't need to re-check inventory
-                // we just pass it through to the result channel
+                // If it's already accepted by us, we don't need to re-check inventory 
+                // but we include it in results to show on the UI.
                 if order.Status == "accepted" && order.PharmacyID == pharmacyID {
                     resultChan <- order
                     continue
@@ -73,6 +71,7 @@ func GetAvailableGlobalOrders(c *fiber.Ctx) error {
         }()
     }
 
+    // Send orders to workers
     for _, o := range orders {
         if o.Prescription.ID != uuid.Nil || o.PrescriptionID != "" {
             orderChan <- o
@@ -87,19 +86,16 @@ func GetAvailableGlobalOrders(c *fiber.Ctx) error {
 
     // 3. Collect results
     for o := range resultChan {
-        // Only trigger the "Acceptance" update if it's currently a global/draft order
+        // If it's a fresh order (not yet accepted), mark it as accepted now
         if o.Status != "accepted" {
-             // Use a transaction or specific check to avoid race conditions
-             db.Model(&model.Order{}).
-                Where("id = ? AND status IN ?", o.ID, []string{"draft", "pending"}).
-                Updates(map[string]interface{}{
-                    "status":      "accepted",
-                    "pharmacy_id": pharmacyID,
-                })
-             o.Status = "accepted"
-             o.PharmacyID = pharmacyID
+             // In your snippet you had o.PharmacyID == pharmacyID check here,
+             // Ensure the update assigns the pharmacyID to the order
+             db.Model(&model.Order{}).Where("id = ?", o.ID).Updates(map[string]interface{}{
+                 "status": "accepted",
+                 "pharmacy_id": pharmacyID,
+             })
+             o.Status = "accepted" // Keep it as 'accepted' for the UI
         }
-        
         fulfillableOrders = append(fulfillableOrders, o)
     }
 
