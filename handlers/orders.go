@@ -79,7 +79,7 @@ func GetAvailableGlobalOrders(c *fiber.Ctx) error {
     for o := range resultChan {
         if o.PharmacyID == pharmacyID {
             db.Model(&model.Order{}).Where("id = ?", o.ID).Update("status", "accepted")
-            o.Status = "accepted"
+            o.Status = "pending"
         }
         fulfillableOrders = append(fulfillableOrders, o)
     }
