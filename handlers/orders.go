@@ -479,7 +479,8 @@ type DrugItem struct {
     Dosage    string `json:"dosage"`
     Frequency string `json:"frequency"` // Added to capture "Twice daily"
     Duration  string `json:"duration"`
-    Quantity  int    `json:"quantity"`
+    // Quantity  int    `json:"quantity"`
+	Quantity  interface{} `json:"quantity"`
 }
 func safeFloat64(val *float64) float64 {
     if val == nil {
@@ -528,7 +529,19 @@ func ServeOrder(c *fiber.Ctx) error {
             //     }
             // }
             
-			qtyToDeduct := item.Quantity
+			var qtyToDeduct int
+    
+			// Convert interface{} to string or int safely
+			switch v := item.Quantity.(type) {
+			case float64: // JSON numbers are often float64 in Go interface{}
+				qtyToDeduct = int(v)
+			case string:
+				fmt.Sscanf(v, "%d", &qtyToDeduct)
+			case int:
+				qtyToDeduct = v
+			}
+
+
             durationDays := 0
             timesPerDay := 1 // Default
 
