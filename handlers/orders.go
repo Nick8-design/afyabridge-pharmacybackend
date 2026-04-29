@@ -107,7 +107,7 @@ Find(&orders).Error
 func checkInventoryForPrescription(pharmacyID string, itemsJSON datatypes.JSON) (bool, error) {
     var items []struct {
         Name     string `json:"name"`
-        Quantity int    `json:"quantity"`
+        Quantity string    `json:"quantity"`
     }
 
     if err := json.Unmarshal(itemsJSON, &items); err != nil {
@@ -119,7 +119,8 @@ func checkInventoryForPrescription(pharmacyID string, itemsJSON datatypes.JSON) 
     for _, item := range items {
         var count int64
         // Default quantity to 1 if it's not specified in the prescription JSON
-        reqQty := item.Quantity
+        reqQty := 0
+        fmt.Sscanf(item.Quantity, "%d", &reqQty)
         if reqQty <= 0 { reqQty = 1 }
 
         // Using .Table("drugs") as per your previous logs
